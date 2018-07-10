@@ -1,30 +1,30 @@
 module Model exposing (..)
 
 import Array2 exposing (Array2)
-import TypedPoint2 exposing (TypedPoint2)
+import Point2 exposing (Point2)
 
 
-type BlockLocalPosition
-    = BlockLocalPosition
+type BlockCoord
+    = BlockCoord
 
 
-type GridLocalPosition
-    = GridLocalPosition
+type GridCoord
+    = GridCoord
 
 
-type WorldPosition
-    = WorldPosition
+type WorldCoord
+    = WorldCoord
 
 
-type ViewPosition
-    = ViewPosition
+type ViewCoord
+    = ViewCoord
 
 
 type alias Model =
-    { grid : Array2 GridLocalPosition GridCell
-    , fullSize : TypedPoint2 WorldPosition Int
+    { grid : Array2 GridCoord GridCell
+    , fullSize : Point2 WorldCoord Int
     , blockGroups : List BlockGroup
-    , gridOffset : TypedPoint2 WorldPosition Int
+    , gridOffset : Point2 WorldCoord Int
     }
 
 
@@ -34,8 +34,8 @@ type GridCell
 
 
 type alias BlockGroup =
-    { blocks : List (TypedPoint2 BlockLocalPosition Int)
+    { blocks : List (Point2 BlockCoord Int)
     , rotation : Int
-    , position : TypedPoint2 WorldPosition Int
+    , position : Point2 WorldCoord Int
     , direction : Int
     }

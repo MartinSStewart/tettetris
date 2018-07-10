@@ -1,25 +1,25 @@
 module Array2 exposing (..)
 
 import Array.Hamt as Array
-import TypedPoint2 exposing (TypedPoint2(..))
+import Point2 exposing (Point2(..))
 
 
 type alias Array2 a b =
-    { size : TypedPoint2 a Int, data : Array.Array (Array.Array b) }
+    { size : Point2 a Int, data : Array.Array (Array.Array b) }
 
 
-init : TypedPoint2 a Int -> b -> Array2 a b
-init (TypedPoint2 size) value =
-    { size = TypedPoint2 size, data = Array.repeat size.x (Array.repeat size.y value) }
+init : Point2 a Int -> b -> Array2 a b
+init (Point2 size) value =
+    { size = Point2 size, data = Array.repeat size.x (Array.repeat size.y value) }
 
 
-get : TypedPoint2 a Int -> Array2 a b -> Maybe b
-get (TypedPoint2 point) array2 =
+get : Point2 a Int -> Array2 a b -> Maybe b
+get (Point2 point) array2 =
     Array.get point.x array2.data |> Maybe.andThen (Array.get point.y)
 
 
-set : TypedPoint2 a Int -> b -> Array2 a b -> Array2 a b
-set (TypedPoint2 point) value array2 =
+set : Point2 a Int -> b -> Array2 a b -> Array2 a b
+set (Point2 point) value array2 =
     let
         column =
             Array.get point.x array2.data
@@ -35,7 +35,7 @@ set (TypedPoint2 point) value array2 =
         { size = array2.size, data = newData }
 
 
-replace : TypedPoint2 a Int -> (b -> b) -> Array2 a b -> Array2 a b
+replace : Point2 a Int -> (b -> b) -> Array2 a b -> Array2 a b
 replace point replaceFunc array2 =
     case get point array2 of
         Just a ->
@@ -45,7 +45,7 @@ replace point replaceFunc array2 =
             array2
 
 
-toIndexedList : Array2 a b -> List ( TypedPoint2 a Int, b )
+toIndexedList : Array2 a b -> List ( Point2 a Int, b )
 toIndexedList array2 =
     let
         arrayToIndexList =
@@ -55,10 +55,10 @@ toIndexedList array2 =
             |> List.concatMap
                 (\( x, a ) ->
                     arrayToIndexList a
-                        |> List.map (\( y, b ) -> ( TypedPoint2 { x = x, y = y }, b ))
+                        |> List.map (\( y, b ) -> ( Point2 { x = x, y = y }, b ))
                 )
 
 
-size : Array2 a b -> TypedPoint2 a Int
+size : Array2 a b -> Point2 a Int
 size array2 =
     array2.size

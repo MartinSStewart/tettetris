@@ -1,39 +1,27 @@
 module Main exposing (..)
 
 import Array2 exposing (Array2)
-import Block exposing (Block)
-import BlockGroup exposing (BlockGroup)
+import BlockGroup
 import Html exposing (Html, div, h1, img, text)
 import Html.Attributes exposing (src)
 import Keyboard
 import Point2 exposing (Point2)
+import TypedPoint2 exposing (TypedPoint2(..))
 import Time
+import Model exposing (..)
 
 
 ---- MODEL ----
 
 
-type alias Model =
-    { grid : Array2 GridCell
-    , fullSize : Point2 Int
-    , blockGroups : List BlockGroup
-    , gridOffset : Point2 Int
-    }
-
-
-type GridCell
-    = Empty
-    | BlockCell Block
-
-
 init : ( Model, Cmd Msg )
 init =
-    ( { grid = Array2.init { x = 15, y = 15 } Empty |> Array2.set (Point2 0 0) (BlockCell Block.Block)
-      , fullSize = { x = 25, y = 25 }
+    ( { grid = Array2.init { x = 15, y = 15 } Empty |> Array2.set (Point2 0 0) BlockCell
+      , fullSize = TypedPoint2 { x = 25, y = 25 }
       , blockGroups = []
-      , gridOffset = { x = 5, y = 4 }
+      , gridOffset = TypedPoint2 { x = 5, y = 4 }
       }
-        |> addBlockGroup { x = 5, y = 8 } 1
+        |> addBlockGroup (TypedPoint2 { x = 5, y = 8 }) 1
     , Cmd.none
     )
 
@@ -46,22 +34,6 @@ type Msg
     = NoOp
     | Step Float
     | KeyPress Int
-
-
-type Position a b
-    = Position (Point2 b)
-
-
-type BlockGroupPosition
-    = BlockGroupPosition
-
-
-type GridLocalPosition
-    = GridLocalPosition
-
-
-type WorldPosition
-    = WorldPosition
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -77,26 +49,27 @@ update msg model =
             let
                 movement =
                     if keyCode == 37 || keyCode == 65 then
-                        Point2 -1 0
+                        TypedPoint2 (Point2 -1 0)
                     else if keyCode == 38 || keyCode == 87 then
-                        Point2 0 -1
+                        TypedPoint2 (Point2 0 -1)
                     else if keyCode == 39 || keyCode == 68 then
-                        Point2 1 0
+                        TypedPoint2 (Point2 1 0)
                     else if keyCode == 40 || keyCode == 83 then
-                        Point2 0 1
+                        TypedPoint2 (Point2 0 1)
                     else
-                        Point2.zero
+                        TypedPoint2 Point2.zero
 
                 margin =
-                    { x = 3, y = 3 }
+                    TypedPoint2 { x = 3, y = 3 }
 
                 newGridOffset =
-                    Point2.add model.gridOffset movement |> Point2.clamp margin (Point2.sub model.fullSize margin)
+                    TypedPoint2.add model.gridOffset movement
+                        |> TypedPoint2.clamp margin (TypedPoint2.sub model.fullSize margin)
             in
                 ( { model | gridOffset = newGridOffset }, Cmd.none )
 
 
-addBlockGroup : Point2 Int -> Int -> Model -> Model
+addBlockGroup : TypedPoint2 WorldPosition Int -> Int -> Model -> Model
 addBlockGroup position direction model =
     { model
         | blockGroups =
@@ -130,10 +103,11 @@ addBlockGroupToGrid : BlockGroup -> Model -> Model
 addBlockGroupToGrid blockGroup model =
     { model
         | grid =
-            BlockGroup.getBlocksWorldCoord blockGroup
+            blockGroup.blocks
+                |> List.map (BlockGroup.blockLocalToWorld blockGroup)
                 |> List.foldl
                     (\block grid ->
-                        setGridValue model block (BlockCell Block.Block) grid
+                        setGridValue model block BlockCell grid
                     )
                     model.grid
     }
@@ -141,7 +115,8 @@ addBlockGroupToGrid blockGroup model =
 
 collides : Model -> BlockGroup -> Bool
 collides model blockGroup =
-    BlockGroup.getBlocksWorldCoord blockGroup
+    blockGroup.blocks
+        |> List.map (BlockGroup.blockLocalToWorld blockGroup)
         |> List.any
             (\a ->
                 if getGridValue model a == Empty then
@@ -151,20 +126,20 @@ collides model blockGroup =
             )
 
 
-getGridValue : Model -> Point2 Int -> GridCell
+getGridValue : Model -> TypedPoint2 WorldPosition Int -> GridCell
 getGridValue model gridPosition =
     let
-        gridLocalCoord =
-            Point2.sub gridPosition model.gridOffset
+        (TypedPoint2 gridLocalCoord) =
+            TypedPoint2.sub gridPosition model.gridOffset
     in
         Array2.get gridLocalCoord model.grid |> Maybe.withDefault Empty
 
 
-setGridValue : Model -> Point2 Int -> GridCell -> Array2 GridCell -> Array2 GridCell
-setGridValue model gridPosition gridCell grid =
+setGridValue : Model -> TypedPoint2 WorldPosition Int -> GridCell -> Array2 GridCell -> Array2 GridCell
+setGridValue model position gridCell grid =
     let
-        gridLocalCoord =
-            Point2.sub gridPosition model.gridOffset
+        (TypedPoint2 gridLocalCoord) =
+            TypedPoint2.sub position model.gridOffset
     in
         Array2.set gridLocalCoord gridCell grid
 
@@ -173,42 +148,49 @@ setGridValue model gridPosition gridCell grid =
 ---- VIEW ----
 
 
-gridToView : Model -> Point2 Int -> Point2 Float -> Point2 Float
-gridToView model gridPosition gridViewSize =
+gridToView : Model -> TypedPoint2 WorldPosition Int -> TypedPoint2 ViewPosition Float -> TypedPoint2 ViewPosition Float
+gridToView model (TypedPoint2 gridPosition) gridViewSize =
     gridCellSize model.fullSize gridViewSize
-        |> Point2.mult (Point2.toFloat gridPosition)
+        |> TypedPoint2.mult (TypedPoint2.toFloat (TypedPoint2 gridPosition))
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ viewGrid model Point2.zero { x = 500, y = 500 }
+        [ viewGrid model (TypedPoint2 Point2.zero) (TypedPoint2 { x = 500, y = 500 })
         ]
 
 
-viewGrid : Model -> Point2 number -> Point2 Float -> Html Msg
+viewGrid : Model -> TypedPoint2 ViewPosition number -> TypedPoint2 ViewPosition Float -> Html Msg
 viewGrid model topLeft size =
     let
         cellSize =
             gridCellSize model.fullSize size
 
-        getViewBlock block gridPosition =
-            viewBlock block (gridToView model gridPosition size) cellSize
+        getViewBlock gridTypedPoint2 =
+            viewBlock (gridToView model gridTypedPoint2 size) cellSize
 
         blockGroupBlocks =
             model.blockGroups
-                |> List.concatMap BlockGroup.getBlocksWorldCoord
-                |> List.map (getViewBlock {})
+                |> List.concatMap (\a -> a.blocks |> List.map (BlockGroup.blockLocalToWorld a))
+                |> List.map getViewBlock
 
         crosshairWidth =
             2
 
-        crosshairCenter =
+        (TypedPoint2 crosshairCenter) =
             gridToView model model.gridOffset size
 
+        (TypedPoint2 rawSize) =
+            size
+
         centerPointCrosshair =
-            [ absoluteStyle { x = crosshairCenter.x - crosshairWidth * 0.5, y = 0 } { x = crosshairWidth, y = size.y }
-            , absoluteStyle { x = 0, y = crosshairCenter.y - crosshairWidth * 0.5 } { x = size.x, y = crosshairWidth }
+            [ absoluteStyle
+                (TypedPoint2 { x = crosshairCenter.x - crosshairWidth * 0.5, y = 0 })
+                (TypedPoint2 { x = crosshairWidth, y = rawSize.y })
+            , absoluteStyle
+                (TypedPoint2 { x = 0, y = crosshairCenter.y - crosshairWidth * 0.5 })
+                (TypedPoint2 { x = rawSize.x, y = crosshairWidth })
             ]
                 |> List.map (\a -> div [ Html.Attributes.style <| ( "background-color", "black" ) :: a ] [])
 
@@ -220,8 +202,12 @@ viewGrid model topLeft size =
                             Empty ->
                                 Nothing
 
-                            BlockCell block ->
-                                pos |> Point2.add model.gridOffset |> getViewBlock block |> Just
+                            BlockCell ->
+                                pos
+                                    |> TypedPoint2
+                                    |> TypedPoint2.add model.gridOffset
+                                    |> getViewBlock
+                                    |> Just
                     )
     in
         div
@@ -229,8 +215,8 @@ viewGrid model topLeft size =
             (blockDivs ++ blockGroupBlocks ++ centerPointCrosshair)
 
 
-viewBlock : Block -> Point2 number -> Point2 number2 -> Html Msg
-viewBlock block topLeft size =
+viewBlock : TypedPoint2 ViewPosition number -> TypedPoint2 ViewPosition number2 -> Html Msg
+viewBlock topLeft size =
     div
         [ Html.Attributes.style <|
             ( "background-color", "black" )
@@ -239,21 +225,21 @@ viewBlock block topLeft size =
         []
 
 
-gridCellSize : Point2 Int -> Point2 Float -> Point2 Float
-gridCellSize gridDivs gridSize =
-    gridDivs
-        |> Point2.toFloat
-        |> Point2.inverse
-        |> Point2.mult gridSize
+gridCellSize : TypedPoint2 WorldPosition Int -> TypedPoint2 ViewPosition Float -> TypedPoint2 ViewPosition Float
+gridCellSize (TypedPoint2 gridDivs) gridViewSize =
+    TypedPoint2 gridDivs
+        |> TypedPoint2.toFloat
+        |> TypedPoint2.inverse
+        |> TypedPoint2.mult gridViewSize
 
 
-absoluteStyle : Point2 number -> Point2 number2 -> List ( String, String )
-absoluteStyle pixelPosition pixelSize =
+absoluteStyle : TypedPoint2 ViewPosition number -> TypedPoint2 ViewPosition number2 -> List ( String, String )
+absoluteStyle (TypedPoint2 position) (TypedPoint2 size) =
     [ ( "position", "absolute" )
-    , ( "left", px pixelPosition.x )
-    , ( "top", px pixelPosition.y )
-    , ( "width", px pixelSize.x )
-    , ( "height", px pixelSize.y )
+    , ( "left", px position.x )
+    , ( "top", px position.y )
+    , ( "width", px size.x )
+    , ( "height", px size.y )
     , ( "margin", "0px" )
     ]
 

@@ -8,90 +8,95 @@ type Point2 a number
         }
 
 
+new : number -> number -> Point2 a number
+new x y =
+    Point2 { x = x, y = y }
+
+
 add : Point2 a number -> Point2 a number -> Point2 a number
 add (Point2 point0) (Point2 point1) =
-    Point2 { x = point0.x + point1.x, y = point0.y + point1.y }
+    new (point0.x + point1.x) (point0.y + point1.y)
 
 
 sub : Point2 a number -> Point2 a number -> Point2 a number
 sub (Point2 point0) (Point2 point1) =
-    Point2 { x = point0.x - point1.x, y = point0.y - point1.y }
+    new (point0.x - point1.x) (point0.y - point1.y)
 
 
 rsub : Point2 a number -> Point2 a number -> Point2 a number
 rsub (Point2 point1) (Point2 point0) =
-    Point2 { x = point0.x - point1.x, y = point0.y - point1.y }
+    new (point0.x - point1.x) (point0.y - point1.y)
 
 
 multScalar : Point2 a number -> number -> Point2 a number
 multScalar (Point2 point) scalar =
-    Point2 { x = point.x * scalar, y = point.y * scalar }
+    new (point.x * scalar) (point.y * scalar)
 
 
 {-| Multiplies one point by a scalar but with the parameter order reversed.
 -}
 rmultScalar : number -> Point2 a number -> Point2 a number
 rmultScalar scalar (Point2 point) =
-    Point2 { x = point.x * scalar, y = point.y * scalar }
+    new (point.x * scalar) (point.y * scalar)
 
 
 mult : Point2 a number -> Point2 a number -> Point2 a number
 mult (Point2 point0) (Point2 point1) =
-    Point2 { x = point0.x * point1.x, y = point0.y * point1.y }
+    new (point0.x * point1.x) (point0.y * point1.y)
 
 
 div : Point2 a Int -> Int -> Point2 a Int
 div (Point2 point) divisor =
-    Point2 { x = point.x // divisor, y = point.y // divisor }
+    new (point.x // divisor) (point.y // divisor)
 
 
 {-| Divides one point by an integer but with the parameter order reversed.
 -}
 rdiv : Int -> Point2 a Int -> Point2 a Int
 rdiv divisor (Point2 point) =
-    Point2 { x = point.x // divisor, y = point.y // divisor }
+    new (point.x // divisor) (point.y // divisor)
 
 
 negate : Point2 a number -> Point2 a number
 negate (Point2 point) =
-    Point2 { x = -point.x, y = -point.y }
+    new -point.x -point.y
 
 
 inverse : Point2 a Float -> Point2 a Float
 inverse (Point2 point) =
-    Point2 { x = 1 / point.x, y = 1 / point.y }
+    new (1 / point.x) (1 / point.y)
 
 
 zero : Point2 a number
 zero =
-    Point2 { x = 0, y = 0 }
+    new 0 0
 
 
 one : Point2 a number
 one =
-    Point2 { x = 1, y = 1 }
+    new 1 1
 
 
 min : Point2 a number -> Point2 a number -> Point2 a number
 min (Point2 point0) (Point2 point1) =
     --Due to a compiler bug, we need to add 0. Otherwise we can't use number types in Basics.min.
-    Point2 { x = Basics.min (point0.x + 0) point1.x, y = Basics.min point0.y point1.y }
+    new (Basics.min (point0.x + 0) point1.x) (Basics.min point0.y point1.y)
 
 
 max : Point2 a number -> Point2 a number -> Point2 a number
 max (Point2 point0) (Point2 point1) =
     --Due to a compiler bug, we need to add 0. Otherwise we can't use number types in Basics.min.
-    Point2 { x = Basics.max (point0.x + 0) point1.x, y = Basics.max point0.y point1.y }
+    new (Basics.max (point0.x + 0) point1.x) (Basics.max point0.y point1.y)
 
 
 floor : Point2 a Float -> Point2 a Int
 floor (Point2 float2) =
-    Point2 { x = Basics.floor float2.x, y = Basics.floor float2.y }
+    new (Basics.floor float2.x) (Basics.floor float2.y)
 
 
 toFloat : Point2 a Int -> Point2 a Float
 toFloat (Point2 int2) =
-    Point2 { x = Basics.toFloat int2.x, y = Basics.toFloat int2.y }
+    new (Basics.toFloat int2.x) (Basics.toFloat int2.y)
 
 
 toTuple : Point2 a number -> ( number, number )
@@ -101,17 +106,17 @@ toTuple (Point2 point) =
 
 fromTuple : ( number, number ) -> Point2 a number
 fromTuple ( x, y ) =
-    Point2 { x = x, y = y }
+    new x y
 
 
-transpose : { x : a, y : a } -> { x : a, y : a }
-transpose point =
-    { x = point.y, y = point.x }
+transpose : Point2 a number -> Point2 a number
+transpose (Point2 point) =
+    new point.y point.x
 
 
 intToInt2 : Int -> Int -> Point2 a Int
 intToInt2 width int =
-    Point2 { x = (int % width), y = (int // width) }
+    new (int % width) (int // width)
 
 
 area : Point2 a number -> number
@@ -142,11 +147,11 @@ inRectangle (Point2 topLeft) (Point2 rectangleSize) (Point2 point) =
 rotateBy90 : Int -> Point2 a number -> Point2 a number
 rotateBy90 rotateBy (Point2 point) =
     if rotateBy % 4 == 1 then
-        Point2 { x = point.y, y = -point.x }
+        new point.y -point.x
     else if rotateBy % 4 == 2 then
-        Point2 { x = -point.x, y = -point.y }
+        new -point.x -point.y
     else if rotateBy % 4 == 3 then
-        Point2 { x = -point.y, y = point.x }
+        new -point.y point.x
     else
         Point2 point
 
@@ -160,4 +165,14 @@ angle (Point2 point) =
 
 clamp : Point2 a number -> Point2 a number -> Point2 a number -> Point2 a number
 clamp (Point2 min) (Point2 max) (Point2 value) =
-    Point2 { x = Basics.clamp min.x max.x value.x, y = Basics.clamp min.y max.y value.y }
+    new (Basics.clamp min.x max.x value.x) (Basics.clamp min.y max.y value.y)
+
+
+xOnly : Point2 a number -> Point2 a number
+xOnly (Point2 point) =
+    new point.x 0
+
+
+yOnly : Point2 a number -> Point2 a number
+yOnly (Point2 point) =
+    new point.x 0

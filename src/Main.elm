@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Array2 exposing (Array2)
-import BlockGroup
+import Block
 import Html exposing (Html, div, h1, img, text)
 import Html.Attributes exposing (src)
 import Keyboard
@@ -15,12 +15,12 @@ import Model exposing (..)
 
 init : ( Model, Cmd Msg )
 init =
-    ( { grid = Array2.init (Point2 { x = 15, y = 15 }) Empty |> Array2.set Point2.zero BlockCell
-      , fullSize = Point2 { x = 25, y = 25 }
+    ( { grid = Array2.init (Point2.new 15 15) Empty |> Array2.set Point2.zero BlockCell
+      , fullSize = Point2.new 25 25
       , blockGroups = []
-      , gridOffset = Point2 { x = 5, y = 4 }
+      , gridOffset = Point2.new 5 4
       }
-        |> addBlockGroup (Point2 { x = 5, y = 8 }) 1
+        |> addBlockGroup (Point2.new 5 8) 1
     , Cmd.none
     )
 
@@ -48,18 +48,18 @@ update msg model =
             let
                 movement =
                     if keyCode == 37 || keyCode == 65 then
-                        Point2 { x = -1, y = 0 }
+                        Point2.new -1 0
                     else if keyCode == 38 || keyCode == 87 then
-                        Point2 { x = 0, y = -1 }
+                        Point2.new 0 -1
                     else if keyCode == 39 || keyCode == 68 then
-                        Point2 { x = 1, y = 0 }
+                        Point2.new 1 0
                     else if keyCode == 40 || keyCode == 83 then
-                        Point2 { x = 0, y = 1 }
+                        Point2.new 0 1
                     else
                         Point2.zero
 
                 margin =
-                    Point2 { x = 3, y = 3 }
+                    Point2.new 3 3
 
                 newGridOffset =
                     Point2.add model.gridOffset movement
@@ -72,7 +72,7 @@ addBlockGroup : Point2 WorldCoord Int -> Int -> Model -> Model
 addBlockGroup position direction model =
     { model
         | blockGroups =
-            { blocks = BlockGroup.square
+            { blocks = Block.square
             , rotation = 0
             , position = position
             , direction = direction
@@ -88,7 +88,7 @@ step model =
             (\blockGroup newModel ->
                 let
                     movedBlockGroup =
-                        BlockGroup.move blockGroup
+                        Block.move blockGroup
                 in
                     if collides newModel movedBlockGroup then
                         addBlockGroupToGrid blockGroup newModel
@@ -98,12 +98,12 @@ step model =
             { model | blockGroups = [] }
 
 
-addBlockGroupToGrid : BlockGroup -> Model -> Model
+addBlockGroupToGrid : Block -> Model -> Model
 addBlockGroupToGrid blockGroup model =
     { model
         | grid =
             blockGroup.blocks
-                |> List.map (BlockGroup.blockLocalToWorld blockGroup)
+                |> List.map (Block.blockLocalToWorld blockGroup)
                 |> List.foldl
                     (\block grid ->
                         setGridValue model block BlockCell grid
@@ -112,10 +112,10 @@ addBlockGroupToGrid blockGroup model =
     }
 
 
-collides : Model -> BlockGroup -> Bool
+collides : Model -> Block -> Bool
 collides model blockGroup =
     blockGroup.blocks
-        |> List.map (BlockGroup.blockLocalToWorld blockGroup)
+        |> List.map (Block.blockLocalToWorld blockGroup)
         |> List.any
             (\a ->
                 if getGridValue model a == Empty then
@@ -165,7 +165,7 @@ gridToView model (Point2 gridPosition) gridViewSize =
 view : Model -> Html Msg
 view model =
     div []
-        [ viewGrid model Point2.zero (Point2 { x = 500, y = 500 })
+        [ viewGrid model Point2.zero (Point2.new 500 500)
         ]
 
 
@@ -180,7 +180,7 @@ viewGrid model topLeft size =
 
         blockGroupBlocks =
             model.blockGroups
-                |> List.concatMap (\a -> a.blocks |> List.map (BlockGroup.blockLocalToWorld a))
+                |> List.concatMap (\a -> a.blocks |> List.map (Block.blockLocalToWorld a))
                 |> List.map getViewBlock
 
         crosshairWidth =

@@ -23,7 +23,7 @@ type ViewCoord
 type alias Model =
     { grid : Array2 GridCoord GridCell
     , fullSize : Point2 WorldCoord Int
-    , blockGroups : List BlockGroup
+    , blockGroups : List Block
     , gridOffset : Point2 WorldCoord Int
     }
 
@@ -33,7 +33,7 @@ type GridCell
     | BlockCell
 
 
-type alias BlockGroup =
+type alias Block =
     { blocks : List (Point2 BlockCoord Int)
     , rotation : Int
     , position : Point2 WorldCoord Int

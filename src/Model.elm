@@ -21,7 +21,7 @@ type ViewPosition
 
 
 type alias Model =
-    { grid : Array2 GridCell
+    { grid : Array2 GridLocalPosition GridCell
     , fullSize : TypedPoint2 WorldPosition Int
     , blockGroups : List BlockGroup
     , gridOffset : TypedPoint2 WorldPosition Int

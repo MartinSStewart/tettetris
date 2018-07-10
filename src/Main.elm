@@ -5,7 +5,6 @@ import BlockGroup
 import Html exposing (Html, div, h1, img, text)
 import Html.Attributes exposing (src)
 import Keyboard
-import Point2 exposing (Point2)
 import TypedPoint2 exposing (TypedPoint2(..))
 import Time
 import Model exposing (..)
@@ -16,7 +15,7 @@ import Model exposing (..)
 
 init : ( Model, Cmd Msg )
 init =
-    ( { grid = Array2.init { x = 15, y = 15 } Empty |> Array2.set (Point2 0 0) BlockCell
+    ( { grid = Array2.init (TypedPoint2 { x = 15, y = 15 }) Empty |> Array2.set TypedPoint2.zero BlockCell
       , fullSize = TypedPoint2 { x = 25, y = 25 }
       , blockGroups = []
       , gridOffset = TypedPoint2 { x = 5, y = 4 }
@@ -49,15 +48,15 @@ update msg model =
             let
                 movement =
                     if keyCode == 37 || keyCode == 65 then
-                        TypedPoint2 (Point2 -1 0)
+                        TypedPoint2 { x = -1, y = 0 }
                     else if keyCode == 38 || keyCode == 87 then
-                        TypedPoint2 (Point2 0 -1)
+                        TypedPoint2 { x = 0, y = -1 }
                     else if keyCode == 39 || keyCode == 68 then
-                        TypedPoint2 (Point2 1 0)
+                        TypedPoint2 { x = 1, y = 0 }
                     else if keyCode == 40 || keyCode == 83 then
-                        TypedPoint2 (Point2 0 1)
+                        TypedPoint2 { x = 0, y = 1 }
                     else
-                        TypedPoint2 Point2.zero
+                        TypedPoint2.zero
 
                 margin =
                     TypedPoint2 { x = 3, y = 3 }
@@ -132,23 +131,32 @@ getGridValue model gridPosition =
         (TypedPoint2 gridLocalCoord) =
             TypedPoint2.sub gridPosition model.gridOffset
     in
-        Array2.get gridLocalCoord model.grid |> Maybe.withDefault Empty
+        Array2.get (TypedPoint2 gridLocalCoord) model.grid |> Maybe.withDefault Empty
 
 
-setGridValue : Model -> TypedPoint2 WorldPosition Int -> GridCell -> Array2 GridCell -> Array2 GridCell
+setGridValue :
+    Model
+    -> TypedPoint2 WorldPosition Int
+    -> GridCell
+    -> Array2 GridLocalPosition GridCell
+    -> Array2 GridLocalPosition GridCell
 setGridValue model position gridCell grid =
     let
         (TypedPoint2 gridLocalCoord) =
             TypedPoint2.sub position model.gridOffset
     in
-        Array2.set gridLocalCoord gridCell grid
+        Array2.set (TypedPoint2 gridLocalCoord) gridCell grid
 
 
 
 ---- VIEW ----
 
 
-gridToView : Model -> TypedPoint2 WorldPosition Int -> TypedPoint2 ViewPosition Float -> TypedPoint2 ViewPosition Float
+gridToView :
+    Model
+    -> TypedPoint2 WorldPosition Int
+    -> TypedPoint2 ViewPosition Float
+    -> TypedPoint2 ViewPosition Float
 gridToView model (TypedPoint2 gridPosition) gridViewSize =
     gridCellSize model.fullSize gridViewSize
         |> TypedPoint2.mult (TypedPoint2.toFloat (TypedPoint2 gridPosition))
@@ -157,7 +165,7 @@ gridToView model (TypedPoint2 gridPosition) gridViewSize =
 view : Model -> Html Msg
 view model =
     div []
-        [ viewGrid model (TypedPoint2 Point2.zero) (TypedPoint2 { x = 500, y = 500 })
+        [ viewGrid model TypedPoint2.zero (TypedPoint2 { x = 500, y = 500 })
         ]
 
 
@@ -197,7 +205,7 @@ viewGrid model topLeft size =
         blockDivs =
             Array2.toIndexedList model.grid
                 |> List.filterMap
-                    (\( pos, value ) ->
+                    (\( TypedPoint2 pos, value ) ->
                         case value of
                             Empty ->
                                 Nothing

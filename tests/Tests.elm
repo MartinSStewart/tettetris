@@ -5,6 +5,7 @@ import Array2
 import Point2 exposing (Point2)
 import Main
 import Block
+import Model exposing (..)
 import Expect
 
 
@@ -14,22 +15,17 @@ import Expect
 all : Test
 all =
     describe "A Test Suite"
-        [ test "Addition" <|
-            \_ ->
-                Expect.equal 10 (3 + 7)
-        , test "String.left" <|
-            \_ ->
-                Expect.equal "a" (String.left 1 "abcdefg")
-        , test "This test should fail" <|
-            \_ ->
-                Expect.fail "failed as expected!"
-        , test "Set grid value" <|
+        [ test "Collides" <|
             \_ ->
                 let
                     model =
-                        Main.Model (Array2.init (Point2 5 5)) (Point2 10 10) [] Point2.zero
+                        { grid = Array2.init (Point2.new 10 10) Empty
+                        , gridOffset = Point2.new 5 5
+                        }
+
+                    block =
+                        Block Block.square 0 (Point2.new 0 0) 0
                 in
-                    Main.setGridValue model Point2.zero (Main.BlockCell Block.Block)
-                        |> .grid
-                        |> Expect.equal model.grid
+                    Main.collides model block
+                        |> Expect.false ""
         ]

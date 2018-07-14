@@ -23,20 +23,8 @@ sub (Point2 point0) (Point2 point1) =
     new (point0.x - point1.x) (point0.y - point1.y)
 
 
-rsub : Point2 a number -> Point2 a number -> Point2 a number
-rsub (Point2 point1) (Point2 point0) =
-    new (point0.x - point1.x) (point0.y - point1.y)
-
-
 multScalar : Point2 a number -> number -> Point2 a number
 multScalar (Point2 point) scalar =
-    new (point.x * scalar) (point.y * scalar)
-
-
-{-| Multiplies one point by a scalar but with the parameter order reversed.
--}
-rmultScalar : number -> Point2 a number -> Point2 a number
-rmultScalar scalar (Point2 point) =
     new (point.x * scalar) (point.y * scalar)
 
 
@@ -47,13 +35,6 @@ mult (Point2 point0) (Point2 point1) =
 
 div : Point2 a Int -> Int -> Point2 a Int
 div (Point2 point) divisor =
-    new (point.x // divisor) (point.y // divisor)
-
-
-{-| Divides one point by an integer but with the parameter order reversed.
--}
-rdiv : Int -> Point2 a Int -> Point2 a Int
-rdiv divisor (Point2 point) =
     new (point.x // divisor) (point.y // divisor)
 
 
@@ -77,28 +58,6 @@ one =
     new 1 1
 
 
-min : Point2 a number -> Point2 a number -> Point2 a number
-min (Point2 point0) (Point2 point1) =
-    --Due to a compiler bug, we need to add 0. Otherwise we can't use number types in Basics.min.
-    new (Basics.min (point0.x + 0) point1.x) (Basics.min point0.y point1.y)
-
-
-max : Point2 a number -> Point2 a number -> Point2 a number
-max (Point2 point0) (Point2 point1) =
-    --Due to a compiler bug, we need to add 0. Otherwise we can't use number types in Basics.min.
-    new (Basics.max (point0.x + 0) point1.x) (Basics.max point0.y point1.y)
-
-
-floor : Point2 a Float -> Point2 a Int
-floor (Point2 float2) =
-    new (Basics.floor float2.x) (Basics.floor float2.y)
-
-
-toFloat : Point2 a Int -> Point2 a Float
-toFloat (Point2 int2) =
-    new (Basics.toFloat int2.x) (Basics.toFloat int2.y)
-
-
 toTuple : Point2 a number -> ( number, number )
 toTuple (Point2 point) =
     ( point.x, point.y )
@@ -107,6 +66,24 @@ toTuple (Point2 point) =
 fromTuple : ( number, number ) -> Point2 a number
 fromTuple ( x, y ) =
     new x y
+
+
+toList : Point2 a number -> List number
+toList (Point2 point) =
+    [ point.x, point.y ]
+
+
+fromList : List number -> Point2 a number
+fromList list =
+    case list of
+        a :: b :: rest ->
+            new a b
+
+        a :: rest ->
+            new a 0
+
+        _ ->
+            zero
 
 
 transpose : Point2 a number -> Point2 a number
@@ -130,18 +107,8 @@ length (Point2 point) =
 
 
 inRectangle : Point2 a Int -> Point2 a Int -> Point2 a Int -> Bool
-inRectangle (Point2 topLeft) (Point2 rectangleSize) (Point2 point) =
-    let
-        assertSize =
-            if rectangleSize.x < 0 || rectangleSize.y < 0 then
-                Debug.crash "Negative size not allowed."
-            else
-                ""
-
-        (Point2 bottomRight) =
-            add (Point2 topLeft) (Point2 rectangleSize)
-    in
-        topLeft.x <= point.x && point.x < bottomRight.x && topLeft.y <= point.y && point.y < bottomRight.y
+inRectangle topLeft bottomRight point =
+    map3 clamp topLeft bottomRight point == point
 
 
 rotateBy90 : Int -> Point2 a number -> Point2 a number
@@ -163,11 +130,6 @@ angle (Point2 point) =
     atan2 point.y point.x
 
 
-clamp : Point2 a number -> Point2 a number -> Point2 a number -> Point2 a number
-clamp (Point2 min) (Point2 max) (Point2 value) =
-    new (Basics.clamp min.x max.x value.x) (Basics.clamp min.y max.y value.y)
-
-
 xOnly : Point2 a number -> Point2 a number
 xOnly (Point2 point) =
     new point.x 0
@@ -175,4 +137,34 @@ xOnly (Point2 point) =
 
 yOnly : Point2 a number -> Point2 a number
 yOnly (Point2 point) =
-    new point.x 0
+    new 0 point.y
+
+
+unsafeConvert : Point2 a number -> Point2 b number
+unsafeConvert (Point2 point) =
+    new point.x point.y
+
+
+map : (number -> number2) -> Point2 a number -> Point2 a number2
+map componentFunc (Point2 point) =
+    new (componentFunc point.x) (componentFunc point.y)
+
+
+map2 :
+    (number -> number2 -> number3)
+    -> Point2 a number
+    -> Point2 a number2
+    -> Point2 a number3
+map2 componentFunc (Point2 point0) (Point2 point1) =
+    new (componentFunc point0.x point1.x) (componentFunc point0.y point1.y)
+
+
+map3 :
+    (number -> number2 -> number3 -> number4)
+    -> Point2 a number
+    -> Point2 a number2
+    -> Point2 a number3
+    -> Point2 a number4
+map3 componentFunc (Point2 point0) (Point2 point1) (Point2 point2) =
+    new (componentFunc point0.x point1.x point2.x)
+        (componentFunc point0.y point1.y point2.y)

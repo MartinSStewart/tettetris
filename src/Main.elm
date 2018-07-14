@@ -1,13 +1,23 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Array2 exposing (Array2)
 import Block
+import Converters
 import Html exposing (Html, div, h1, img, text)
 import Html.Attributes exposing (src)
 import Keyboard
+import Model exposing (..)
 import Point2 exposing (Point2(..))
 import Time
-import Model exposing (..)
+import Json
+import Json.Encode
+
+
+---- PORTS ----
+
+
+port portOut : Json.Encode.Value -> Cmd msg
+
 
 
 ---- MODEL ----
@@ -15,12 +25,17 @@ import Model exposing (..)
 
 init : ( Model, Cmd Msg )
 init =
-    ( { grid = Array2.init (Point2.new 15 15) Empty |> Array2.set Point2.zero BlockCell
-      , fullSize = Point2.new 25 25
-      , blockGroups = []
-      , gridOffset = Point2.new 5 4
+    ( { grid = Array2.init (Point2.new 25 25) Empty
+      , fullSize = Point2.new 50 50
+      , blocks = []
+      , gridOffset = Point2.zero
+      , gameStarted = False
       }
-        |> addBlockGroup (Point2.new 5 8) 1
+        |> addBlockGroup 3
+        |> addBlockGroup 2
+        |> addBlockGroup 1
+        |> addBlockGroup 0
+        |> setCrosshairCenter (Point2.new (25 // 2) (25 // 2))
     , Cmd.none
     )
 
@@ -45,107 +60,214 @@ update msg model =
             ( step model, Cmd.none )
 
         KeyPress keyCode ->
-            let
-                movement =
-                    if keyCode == 37 || keyCode == 65 then
-                        Point2.new -1 0
-                    else if keyCode == 38 || keyCode == 87 then
-                        Point2.new 0 -1
-                    else if keyCode == 39 || keyCode == 68 then
-                        Point2.new 1 0
-                    else if keyCode == 40 || keyCode == 83 then
-                        Point2.new 0 1
-                    else
-                        Point2.zero
-
-                margin =
-                    Point2.new 3 3
-
-                newGridOffset =
-                    Point2.add model.gridOffset movement
-                        |> Point2.clamp margin (Point2.sub model.fullSize margin)
-            in
-                ( { model | gridOffset = newGridOffset }, Cmd.none )
+            if model.gameStarted then
+                ( gameStartedKeyPress keyCode model, Cmd.none )
+            else
+                startGame model
 
 
-addBlockGroup : Point2 WorldCoord Int -> Int -> Model -> Model
-addBlockGroup position direction model =
-    { model
-        | blockGroups =
-            { blocks = Block.square
-            , rotation = 0
-            , position = position
-            , direction = direction
-            }
-                :: model.blockGroups
-    }
+startGame : { b | gameStarted : Bool } -> ( { b | gameStarted : Bool }, Cmd msg )
+startGame model =
+    ( { model | gameStarted = True }
+    , PlaySound { soundName = "explosion.mp3", loop = False } |> Json.encodePortOutMsg |> portOut
+    )
+
+
+crosshairMargin : number
+crosshairMargin =
+    10
+
+
+gameStartedKeyPress : Keyboard.KeyCode -> Model -> Model
+gameStartedKeyPress keyCode model =
+    let
+        newModel =
+            if keyCode == 37 || keyCode == 65 then
+                moveCrosshair 2 model
+            else if keyCode == 38 || keyCode == 87 then
+                moveCrosshair 1 model
+            else if keyCode == 39 || keyCode == 68 then
+                moveCrosshair 0 model
+            else if keyCode == 40 || keyCode == 83 then
+                moveCrosshair 3 model
+            else
+                model
+
+        margin =
+            Point2.new crosshairMargin crosshairMargin
+    in
+        if
+            Point2.inRectangle
+                margin
+                (margin |> Point2.sub newModel.fullSize)
+                (getCrosshairCenter newModel)
+        then
+            newModel
+        else
+            model
+
+
+addBlockGroup : Int -> Model -> Model
+addBlockGroup direction model =
+    let
+        position =
+            model.fullSize
+                |> Point2.xOnly
+                |> Point2.negate
+                |> flip Point2.div 2
+                |> Point2.rotateBy90 direction
+                |> Point2.map2 (\a b -> a // 2 + b) model.fullSize
+    in
+        { model
+            | blocks =
+                { blocks = Block.square
+                , rotation = 0
+                , position = position
+                , direction = direction
+                }
+                    :: model.blocks
+        }
 
 
 step : Model -> Model
 step model =
-    model.blockGroups
+    model.blocks
         |> List.foldl
             (\blockGroup newModel ->
                 let
                     movedBlockGroup =
-                        Block.move blockGroup
+                        Block.move blockGroup.direction blockGroup
                 in
                     if collides newModel movedBlockGroup then
                         addBlockGroupToGrid blockGroup newModel
                     else
-                        { newModel | blockGroups = movedBlockGroup :: newModel.blockGroups }
+                        { newModel | blocks = movedBlockGroup :: newModel.blocks }
             )
-            { model | blockGroups = [] }
+            { model | blocks = [] }
 
 
-addBlockGroupToGrid : Block -> Model -> Model
-addBlockGroupToGrid blockGroup model =
-    { model
-        | grid =
-            blockGroup.blocks
-                |> List.map (Block.blockLocalToWorld blockGroup)
+moveCrosshair : Int -> Model -> Model
+moveCrosshair direction model =
+    let
+        updatedBlocks =
+            model.blocks
                 |> List.foldl
-                    (\block grid ->
-                        setGridValue model block BlockCell grid
+                    (\blockGroup newModel ->
+                        let
+                            movedBlockGroup =
+                                Block.move (direction + 2) blockGroup
+                        in
+                            if collides newModel movedBlockGroup then
+                                addBlockGroupToGrid blockGroup newModel
+                            else
+                                { newModel | blocks = blockGroup :: newModel.blocks }
                     )
-                    model.grid
-    }
+                    { model | blocks = [] }
+    in
+        { updatedBlocks
+            | gridOffset =
+                Point2.new 1 0
+                    |> Point2.rotateBy90 direction
+                    |> Point2.add model.gridOffset
+        }
 
 
-collides : Model -> Block -> Bool
-collides model blockGroup =
+addBlockGroupToGrid : Block -> GridRecord a -> GridRecord a
+addBlockGroupToGrid blockGroup model =
     blockGroup.blocks
-        |> List.map (Block.blockLocalToWorld blockGroup)
+        |> List.map (Converters.blockLocalToWorld blockGroup)
+        |> List.foldl
+            (\block newModel ->
+                setGridValue newModel block BlockCell
+            )
+            model
+
+
+collides : GridRecord a -> Block -> Bool
+collides model block =
+    block.blocks
+        |> List.map (Converters.blockLocalToWorld block)
         |> List.any
             (\a ->
                 if getGridValue model a == Empty then
-                    False
+                    let
+                        (Point2 aRaw) =
+                            getCrosshairCenter model |> Point2.sub a
+                    in
+                        if block.direction == 0 && aRaw.x >= 0 then
+                            True
+                        else if block.direction == 1 && aRaw.y < 0 then
+                            True
+                        else if block.direction == 2 && aRaw.x < 0 then
+                            True
+                        else if block.direction == 3 && aRaw.y >= 0 then
+                            True
+                        else
+                            False
+                    -- let
+                    --     oppositeSide =
+                    --         Point2.new 1 0 |> Point2.rotateBy90 block.direction
+                    -- in
+                    --     getCrosshairCenter model
+                    --         |> Point2.sub a
+                    --         |> Point2.map sign
+                    --         |> Point2.mult oppositeSide
+                    --         |> (==) oppositeSide
                 else
                     True
             )
 
 
-getGridValue : Model -> Point2 WorldCoord Int -> GridCell
+sign : number -> number
+sign value =
+    if (value + 0) > 0 then
+        1
+    else if value < 0 then
+        -1
+    else
+        0
+
+
+getGridValue : GridRecord a -> Point2 WorldCoord Int -> GridCell
 getGridValue model gridPosition =
-    let
-        (Point2 gridLocalCoord) =
-            Point2.sub gridPosition model.gridOffset
-    in
-        Array2.get (Point2 gridLocalCoord) model.grid |> Maybe.withDefault Empty
+    Array2.get
+        (Converters.worldToGrid model.gridOffset gridPosition)
+        model.grid
+        |> Maybe.withDefault Empty
 
 
 setGridValue :
-    Model
+    GridRecord a
     -> Point2 WorldCoord Int
     -> GridCell
-    -> Array2 GridCoord GridCell
-    -> Array2 GridCoord GridCell
-setGridValue model position gridCell grid =
-    let
-        (Point2 gridLocalCoord) =
-            Point2.sub position model.gridOffset
-    in
-        Array2.set (Point2 gridLocalCoord) gridCell grid
+    -> GridRecord a
+setGridValue model position gridCell =
+    { model
+        | grid =
+            Array2.set
+                (Converters.worldToGrid model.gridOffset position)
+                gridCell
+                model.grid
+    }
+
+
+getCrosshairCenter : GridRecord a -> Point2 WorldCoord Int
+getCrosshairCenter model =
+    Array2.size model.grid
+        |> flip Point2.div 2
+        |> Point2.unsafeConvert
+        |> Point2.add model.gridOffset
+
+
+setCrosshairCenter : Point2 WorldCoord Int -> GridRecord a -> GridRecord a
+setCrosshairCenter position model =
+    { model
+        | gridOffset =
+            Array2.size model.grid
+                |> flip Point2.div 2
+                |> Point2.unsafeConvert
+                |> Point2.sub position
+    }
 
 
 
@@ -157,16 +279,28 @@ gridToView :
     -> Point2 WorldCoord Int
     -> Point2 ViewCoord Float
     -> Point2 ViewCoord Float
-gridToView model (Point2 gridPosition) gridViewSize =
+gridToView model gridPosition gridViewSize =
     gridCellSize model.fullSize gridViewSize
-        |> Point2.mult (Point2.toFloat (Point2 gridPosition))
+        |> Point2.mult (gridPosition |> Point2.unsafeConvert |> Point2.map toFloat)
 
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ viewGrid model Point2.zero (Point2.new 500 500)
-        ]
+    let
+        viewPortSize =
+            Point2.new 800 800
+
+        pressToStart =
+            if model.gameStarted then
+                div [] []
+            else
+                div [ Html.Attributes.style <| ( "text-align", "center" ) :: absoluteStyle (viewPortSize |> Point2.yOnly |> flip Point2.multScalar 0.4) viewPortSize ]
+                    [ text "Press WASD or Arrow keys to start!" ]
+    in
+        div []
+            [ pressToStart
+            , viewGrid model Point2.zero viewPortSize
+            ]
 
 
 viewGrid : Model -> Point2 ViewCoord number -> Point2 ViewCoord Float -> Html Msg
@@ -179,41 +313,42 @@ viewGrid model topLeft size =
             viewBlock (gridToView model gridTypedPoint2 size) cellSize
 
         blockGroupBlocks =
-            model.blockGroups
-                |> List.concatMap (\a -> a.blocks |> List.map (Block.blockLocalToWorld a))
+            model.blocks
+                |> List.concatMap (\a -> a.blocks |> List.map (Converters.blockLocalToWorld a))
                 |> List.map getViewBlock
 
         crosshairWidth =
             2
 
-        (Point2 crosshairCenter) =
-            gridToView model model.gridOffset size
-
-        (Point2 rawSize) =
-            size
+        crosshairViewCenter =
+            gridToView model (getCrosshairCenter model) size
 
         centerPointCrosshair =
             [ absoluteStyle
-                (Point2 { x = crosshairCenter.x - crosshairWidth * 0.5, y = 0 })
-                (Point2 { x = crosshairWidth, y = rawSize.y })
+                (crosshairViewCenter
+                    |> Point2.xOnly
+                    |> Point2.add (Point2.new (-crosshairWidth * 0.5) 0)
+                )
+                (size |> Point2.yOnly |> Point2.add (Point2.new crosshairWidth 0))
             , absoluteStyle
-                (Point2 { x = 0, y = crosshairCenter.y - crosshairWidth * 0.5 })
-                (Point2 { x = rawSize.x, y = crosshairWidth })
+                (crosshairViewCenter
+                    |> Point2.yOnly
+                    |> Point2.add (Point2.new 0 (-crosshairWidth * 0.5))
+                )
+                (size |> Point2.xOnly |> Point2.add (Point2.new 0 crosshairWidth))
             ]
                 |> List.map (\a -> div [ Html.Attributes.style <| ( "background-color", "black" ) :: a ] [])
 
         blockDivs =
             Array2.toIndexedList model.grid
                 |> List.filterMap
-                    (\( Point2 pos, value ) ->
+                    (\( pos, value ) ->
                         case value of
                             Empty ->
                                 Nothing
 
                             BlockCell ->
-                                pos
-                                    |> Point2
-                                    |> Point2.add model.gridOffset
+                                Converters.gridToWorld model.gridOffset pos
                                     |> getViewBlock
                                     |> Just
                     )
@@ -236,7 +371,7 @@ viewBlock topLeft size =
 gridCellSize : Point2 WorldCoord Int -> Point2 ViewCoord Float -> Point2 ViewCoord Float
 gridCellSize (Point2 gridDivs) gridViewSize =
     Point2 gridDivs
-        |> Point2.toFloat
+        |> Point2.map toFloat
         |> Point2.inverse
         |> Point2.mult gridViewSize
 
@@ -264,7 +399,10 @@ px value =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Time.every 1000 Step
+        [ if model.gameStarted then
+            Time.every 1000 Step
+          else
+            Sub.none
         , Keyboard.downs KeyPress
         ]
 

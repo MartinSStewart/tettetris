@@ -15,5 +15,19 @@ gridToWorld gridOffset point =
 
 
 blockLocalToWorld : Block -> Point2 BlockCoord Int -> Point2 WorldCoord Int
-blockLocalToWorld blockGroup localPosition =
-    localPosition |> Point2.unsafeConvert |> Point2.add blockGroup.position
+blockLocalToWorld block localPosition =
+    let
+        offset =
+            if block.rotationHalfOffset then
+                Point2.new 0.5 0.5
+            else
+                Point2.zero
+    in
+        localPosition
+            |> Point2.map toFloat
+            |> Point2.add offset
+            |> Point2.rotateBy90 block.rotation
+            |> flip Point2.sub offset
+            |> Point2.map round
+            |> Point2.unsafeConvert
+            |> Point2.add block.position

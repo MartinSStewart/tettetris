@@ -2,9 +2,7 @@ import './main.css';
 import { Main } from './Main.elm';
 import registerServiceWorker from './registerServiceWorker';
 
-var app = Main.embed(document.getElementById('root'));
-
-
+var app = Main.embed(document.getElementById('root'), { initialSeed: Math.random() });
 
 app.ports.portOut.subscribe( ( message ) => {
     let messageType = message.Constructor;

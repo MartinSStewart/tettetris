@@ -14,46 +14,61 @@ move direction blockGroup =
     }
 
 
-square : List (Point2 a Int)
+shapes : List ( List (Point2 BlockCoord Int), Bool )
+shapes =
+    [ square, straight, pyramid, hook, hookMirrored ]
+
+
+square : ( List (Point2 BlockCoord Int), Bool )
 square =
-    [ Point2.new -1 -1
-    , Point2.new -1 0
-    , Point2.new 0 -1
-    , Point2.new 0 0
-    ]
+    ( [ Point2.new -1 -1
+      , Point2.new -1 0
+      , Point2.new 0 -1
+      , Point2.new 0 0
+      ]
+    , False
+    )
 
 
-straight : List (Point2 a Int)
+straight : ( List (Point2 BlockCoord Int), Bool )
 straight =
-    [ Point2.new 0 -2
-    , Point2.new 0 -1
-    , Point2.new 0 0
-    , Point2.new 0 1
-    ]
+    ( [ Point2.new 0 -2
+      , Point2.new 0 -1
+      , Point2.new 0 0
+      , Point2.new 0 1
+      ]
+    , True
+    )
 
 
-pyramid : List (Point2 a Int)
+pyramid : ( List (Point2 BlockCoord Int), Bool )
 pyramid =
-    [ Point2.new 0 -1
-    , Point2.new 0 0
-    , Point2.new 0 1
-    , Point2.new -1 0
-    ]
+    ( [ Point2.new 0 -1
+      , Point2.new 0 0
+      , Point2.new 0 1
+      , Point2.new -1 0
+      ]
+    , True
+    )
 
 
-hook : List (Point2 a Int)
+hook : ( List (Point2 BlockCoord Int), Bool )
 hook =
-    [ Point2.new 0 -1
-    , Point2.new 0 0
-    , Point2.new 0 1
-    , Point2.new -1 1
-    ]
+    ( [ Point2.new 0 -1
+      , Point2.new 0 0
+      , Point2.new 0 1
+      , Point2.new -1 1
+      ]
+    , False
+    )
 
 
-hookMirrored : List (Point2 a Int)
+hookMirrored : ( List (Point2 BlockCoord Int), Bool )
 hookMirrored =
-    [ Point2.new 0 -1
-    , Point2.new 0 0
-    , Point2.new 0 1
-    , Point2.new 1 1
-    ]
+    ( [ Point2.new 0 -1
+      , Point2.new 0 0
+      , Point2.new 0 1
+      , Point2.new 1 1
+      ]
+    , False
+    )

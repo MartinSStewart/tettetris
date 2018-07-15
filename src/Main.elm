@@ -5,12 +5,15 @@ import Block
 import Converters
 import Html exposing (Html, div, h1, img, text)
 import Html.Attributes exposing (src)
+import Json
+import Json.Decode
+import Json.Encode
 import Keyboard
+import List.Extra
 import Model exposing (..)
 import Point2 exposing (Point2(..))
+import Random
 import Time
-import Json
-import Json.Encode
 
 
 ---- PORTS ----
@@ -19,23 +22,23 @@ import Json.Encode
 port portOut : Json.Encode.Value -> Cmd msg
 
 
+port portIn : (Json.Decode.Value -> msg) -> Sub msg
+
+
 
 ---- MODEL ----
 
 
-init : ( Model, Cmd Msg )
-init =
+init : Flags -> ( Model, Cmd Msg )
+init flags =
     ( { grid = Array2.init (Point2.new 25 25) Empty
-      , fullSize = Point2.new 50 50
       , blocks = []
       , gridOffset = Point2.zero
       , gameStarted = False
+      , randomSeed = flags.initialSeed * 100000 |> floor |> Random.initialSeed
+      , newBlockCountdown = 5
       }
-        |> addBlockGroup 3
-        |> addBlockGroup 2
-        |> addBlockGroup 1
-        |> addBlockGroup 0
-        |> setCrosshairCenter (Point2.new (25 // 2) (25 // 2))
+        |> setCrosshairCenter (Point2.div worldSize 2)
     , Cmd.none
     )
 
@@ -57,7 +60,29 @@ update msg model =
             ( model, Cmd.none )
 
         Step _ ->
-            ( step model, Cmd.none )
+            let
+                countdown =
+                    model.newBlockCountdown
+
+                newModel =
+                    if countdown <= 0 then
+                        { model | newBlockCountdown = 5 }
+                            |> getRandom
+                                (List.length Block.shapes
+                                    |> Random.int 0
+                                    |> Random.map (flip List.Extra.getAt Block.shapes >> Maybe.withDefault Block.hook)
+                                )
+                            |> tupleCombine
+                                (\a b ->
+                                    addBlock
+                                        a
+                                        0
+                                        b
+                                )
+                    else
+                        { model | newBlockCountdown = countdown - 1 }
+            in
+                ( step newModel, Cmd.none )
 
         KeyPress keyCode ->
             if model.gameStarted then
@@ -66,16 +91,29 @@ update msg model =
                 startGame model
 
 
+tupleCombine : (a -> b -> c) -> ( a, b ) -> c
+tupleCombine combine ( a, b ) =
+    combine a b
+
+
 startGame : { b | gameStarted : Bool } -> ( { b | gameStarted : Bool }, Cmd msg )
 startGame model =
     ( { model | gameStarted = True }
-    , PlaySound { soundName = "explosion.mp3", loop = False } |> Json.encodePortOutMsg |> portOut
+    , PlaySound { soundName = "explosion.mp3", loop = False }
+        |> Json.encodePortOutMsg
+        |> portOut
     )
 
 
 crosshairMargin : number
 crosshairMargin =
     10
+
+
+getRandom : Random.Generator a -> Model -> ( a, Model )
+getRandom generator model =
+    Random.step generator model.randomSeed
+        |> Tuple.mapSecond (\a -> { model | randomSeed = a })
 
 
 gameStartedKeyPress : Keyboard.KeyCode -> Model -> Model
@@ -90,6 +128,8 @@ gameStartedKeyPress keyCode model =
                 moveCrosshair 0 model
             else if keyCode == 40 || keyCode == 83 then
                 moveCrosshair 3 model
+            else if keyCode == 32 then
+                { model | blocks = List.map (rotateBlock model) model.blocks }
             else
                 model
 
@@ -99,7 +139,7 @@ gameStartedKeyPress keyCode model =
         if
             Point2.inRectangle
                 margin
-                (margin |> Point2.sub newModel.fullSize)
+                (margin |> Point2.sub worldSize)
                 (getCrosshairCenter newModel)
         then
             newModel
@@ -107,26 +147,44 @@ gameStartedKeyPress keyCode model =
             model
 
 
-addBlockGroup : Int -> Model -> Model
-addBlockGroup direction model =
+rotateBlock : GridRecord a -> Block -> Block
+rotateBlock model block =
     let
-        position =
-            model.fullSize
+        rotatedBlock =
+            { block | rotation = block.rotation + 1 }
+    in
+        if collides model rotatedBlock then
+            block
+        else
+            rotatedBlock
+
+
+worldSize : Point2 WorldCoord Int
+worldSize =
+    Point2.new 50 50
+
+
+addBlock : ( List (Point2 BlockCoord Int), Bool ) -> Int -> BlockRecord a -> BlockRecord a
+addBlock blockData direction model =
+    appendBlock
+        { blocks = blockData |> Tuple.first
+        , rotationHalfOffset = blockData |> Tuple.second
+        , rotation = 0
+        , position =
+            worldSize
                 |> Point2.xOnly
                 |> Point2.negate
                 |> flip Point2.div 2
                 |> Point2.rotateBy90 direction
-                |> Point2.map2 (\a b -> a // 2 + b) model.fullSize
-    in
-        { model
-            | blocks =
-                { blocks = Block.square
-                , rotation = 0
-                , position = position
-                , direction = direction
-                }
-                    :: model.blocks
+                |> Point2.map2 (\a b -> a // 2 + b) worldSize
+        , direction = direction
         }
+        model
+
+
+appendBlock : Block -> BlockRecord a -> BlockRecord a
+appendBlock block model =
+    { model | blocks = block :: model.blocks }
 
 
 step : Model -> Model
@@ -141,7 +199,7 @@ step model =
                     if collides newModel movedBlockGroup then
                         addBlockGroupToGrid blockGroup newModel
                     else
-                        { newModel | blocks = movedBlockGroup :: newModel.blocks }
+                        appendBlock movedBlockGroup newModel
             )
             { model | blocks = [] }
 
@@ -160,7 +218,7 @@ moveCrosshair direction model =
                             if collides newModel movedBlockGroup then
                                 addBlockGroupToGrid blockGroup newModel
                             else
-                                { newModel | blocks = blockGroup :: newModel.blocks }
+                                appendBlock blockGroup newModel
                     )
                     { model | blocks = [] }
     in
@@ -275,12 +333,11 @@ setCrosshairCenter position model =
 
 
 gridToView :
-    Model
-    -> Point2 WorldCoord Int
+    Point2 WorldCoord Int
     -> Point2 ViewCoord Float
     -> Point2 ViewCoord Float
-gridToView model gridPosition gridViewSize =
-    gridCellSize model.fullSize gridViewSize
+gridToView gridPosition gridViewSize =
+    gridCellSize worldSize gridViewSize
         |> Point2.mult (gridPosition |> Point2.unsafeConvert |> Point2.map toFloat)
 
 
@@ -307,10 +364,10 @@ viewGrid : Model -> Point2 ViewCoord number -> Point2 ViewCoord Float -> Html Ms
 viewGrid model topLeft size =
     let
         cellSize =
-            gridCellSize model.fullSize size
+            gridCellSize worldSize size
 
         getViewBlock gridTypedPoint2 =
-            viewBlock (gridToView model gridTypedPoint2 size) cellSize
+            viewBlock (gridToView gridTypedPoint2 size) cellSize
 
         blockGroupBlocks =
             model.blocks
@@ -321,7 +378,7 @@ viewGrid model topLeft size =
             2
 
         crosshairViewCenter =
-            gridToView model (getCrosshairCenter model) size
+            gridToView (getCrosshairCenter model) size
 
         centerPointCrosshair =
             [ absoluteStyle
@@ -411,9 +468,9 @@ subscriptions model =
 ---- PROGRAM ----
 
 
-main : Program Never Model Msg
+main : Program Flags Model Msg
 main =
-    Html.program
+    Html.programWithFlags
         { view = view
         , init = init
         , update = update

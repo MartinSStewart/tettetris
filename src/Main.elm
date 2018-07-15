@@ -218,15 +218,22 @@ moveCrosshair direction model =
         updatedBlocks =
             model.blocks
                 |> List.foldl
-                    (\blockGroup newModel ->
+                    (\block newModel ->
                         let
-                            movedBlockGroup =
-                                Block.move (direction + 2) blockGroup
+                            movedBlock =
+                                Block.move (direction + 2) block
                         in
-                            if collides newModel movedBlockGroup then
-                                addBlockGroupToGrid blockGroup newModel
+                            if collides newModel movedBlock then
+                                if direction + 2 == block.direction then
+                                    addBlockGroupToGrid block newModel
+                                else
+                                    {- if the block and crosshair aren't moving
+                                       in opposite directions then we can just
+                                       push the block along with the crosshair
+                                    -}
+                                    Block.move direction block |> flip appendBlock newModel
                             else
-                                appendBlock blockGroup newModel
+                                appendBlock block newModel
                     )
                     { model | blocks = [] }
     in

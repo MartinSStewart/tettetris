@@ -39,12 +39,7 @@ type alias GridRecord a =
     { a
         | grid : Array2 GridCoord GridCell
         , gridOffset : Point2 WorldCoord Int
-    }
-
-
-type alias BlockRecord a =
-    { a
-        | blocks : List Block
+        , blocks : List Block
     }
 
 
@@ -56,7 +51,7 @@ type GridCell
 type alias Block =
     { blocks : List (Point2 BlockCoord Int)
     , rotationHalfOffset : Bool
-    , rotation : Int
+    , rotation : Direction
     , position : Point2 WorldCoord Int
     , direction : Direction
     }

@@ -36,7 +36,7 @@ init flags =
       , gridOffset = Point2.zero
       , gameStarted = False
       , randomSeed = flags.initialSeed * 100000 |> floor |> Random.initialSeed
-      , newBlockCountdown = 5
+      , newBlockCountdown = stepsPerNewBlock
       }
         |> setCrosshairCenter (Point2.div worldSize 2)
     , Cmd.none
@@ -53,6 +53,11 @@ type Msg
     | KeyPress Int
 
 
+stepsPerNewBlock : Int
+stepsPerNewBlock =
+    5
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -66,19 +71,8 @@ update msg model =
 
                 newModel =
                     if countdown <= 0 then
-                        { model | newBlockCountdown = 5 }
-                            |> getRandom
-                                (List.length Block.shapes
-                                    |> Random.int 0
-                                    |> Random.map (flip List.Extra.getAt Block.shapes >> Maybe.withDefault Block.hook)
-                                )
-                            |> tupleCombine
-                                (\a b ->
-                                    addBlock
-                                        a
-                                        0
-                                        b
-                                )
+                        { model | newBlockCountdown = stepsPerNewBlock - 1 }
+                            |> addRandomBlock
                     else
                         { model | newBlockCountdown = countdown - 1 }
             in
@@ -164,7 +158,21 @@ worldSize =
     Point2.new 50 50
 
 
-addBlock : ( List (Point2 BlockCoord Int), Bool ) -> Int -> BlockRecord a -> BlockRecord a
+addRandomBlock : Model -> Model
+addRandomBlock model =
+    model
+        |> getRandom
+            (List.length Block.shapes
+                |> Random.int 0
+                |> Random.map
+                    (flip List.Extra.getAt Block.shapes
+                        >> Maybe.withDefault Block.hook
+                    )
+            )
+        |> tupleCombine (\a b -> addBlock a 0 b)
+
+
+addBlock : ( List (Point2 BlockCoord Int), Bool ) -> Int -> GridRecord a -> GridRecord a
 addBlock blockData direction model =
     appendBlock
         { blocks = blockData |> Tuple.first
@@ -173,7 +181,7 @@ addBlock blockData direction model =
         , position =
             worldSize
                 |> Point2.xOnly
-                |> Point2.negate
+                |> Point2.mirrorX
                 |> flip Point2.div 2
                 |> Point2.rotateBy90 direction
                 |> Point2.map2 (\a b -> a // 2 + b) worldSize
@@ -182,7 +190,7 @@ addBlock blockData direction model =
         model
 
 
-appendBlock : Block -> BlockRecord a -> BlockRecord a
+appendBlock : Block -> GridRecord a -> GridRecord a
 appendBlock block model =
     { model | blocks = block :: model.blocks }
 
@@ -204,7 +212,7 @@ step model =
             { model | blocks = [] }
 
 
-moveCrosshair : Int -> Model -> Model
+moveCrosshair : Direction -> GridRecord a -> GridRecord a
 moveCrosshair direction model =
     let
         updatedBlocks =
@@ -231,9 +239,8 @@ moveCrosshair direction model =
 
 
 addBlockGroupToGrid : Block -> GridRecord a -> GridRecord a
-addBlockGroupToGrid blockGroup model =
-    blockGroup.blocks
-        |> List.map (Converters.blockLocalToWorld blockGroup)
+addBlockGroupToGrid block model =
+    Converters.blockToWorld block
         |> List.foldl
             (\block newModel ->
                 setGridValue newModel block BlockCell
@@ -243,8 +250,7 @@ addBlockGroupToGrid blockGroup model =
 
 collides : GridRecord a -> Block -> Bool
 collides model block =
-    block.blocks
-        |> List.map (Converters.blockLocalToWorld block)
+    Converters.blockToWorld block
         |> List.any
             (\a ->
                 if getGridValue model a == Empty then
@@ -351,7 +357,7 @@ view model =
             if model.gameStarted then
                 div [] []
             else
-                div [ Html.Attributes.style <| ( "text-align", "center" ) :: absoluteStyle (viewPortSize |> Point2.yOnly |> flip Point2.multScalar 0.4) viewPortSize ]
+                div [ Html.Attributes.style <| ( "text-align", "center" ) :: absoluteStyle (viewPortSize |> Point2.yOnly |> flip Point2.scale 0.4) viewPortSize ]
                     [ text "Press WASD or Arrow keys to start!" ]
     in
         div []
@@ -371,7 +377,7 @@ viewGrid model topLeft size =
 
         blockGroupBlocks =
             model.blocks
-                |> List.concatMap (\a -> a.blocks |> List.map (Converters.blockLocalToWorld a))
+                |> List.concatMap Converters.blockToWorld
                 |> List.map getViewBlock
 
         crosshairWidth =

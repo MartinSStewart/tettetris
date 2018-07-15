@@ -59,16 +59,10 @@ hook =
       , Point2.new 0 1
       , Point2.new -1 1
       ]
-    , False
+    , True
     )
 
 
 hookMirrored : ( List (Point2 BlockCoord Int), Bool )
 hookMirrored =
-    ( [ Point2.new 0 -1
-      , Point2.new 0 0
-      , Point2.new 0 1
-      , Point2.new 1 1
-      ]
-    , False
-    )
+    hook |> Tuple.mapFirst (List.map Point2.mirrorX)

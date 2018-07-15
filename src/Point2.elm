@@ -23,8 +23,8 @@ sub (Point2 point0) (Point2 point1) =
     new (point0.x - point1.x) (point0.y - point1.y)
 
 
-multScalar : Point2 a number -> number -> Point2 a number
-multScalar (Point2 point) scalar =
+scale : Point2 a number -> number -> Point2 a number
+scale (Point2 point) scalar =
     new (point.x * scalar) (point.y * scalar)
 
 
@@ -36,11 +36,6 @@ mult (Point2 point0) (Point2 point1) =
 div : Point2 a Int -> Int -> Point2 a Int
 div (Point2 point) divisor =
     new (point.x // divisor) (point.y // divisor)
-
-
-negate : Point2 a number -> Point2 a number
-negate (Point2 point) =
-    new -point.x -point.y
 
 
 inverse : Point2 a Float -> Point2 a Float
@@ -138,6 +133,21 @@ xOnly (Point2 point) =
 yOnly : Point2 a number -> Point2 a number
 yOnly (Point2 point) =
     new 0 point.y
+
+
+mirrorX : Point2 a number -> Point2 a number
+mirrorX (Point2 point) =
+    new -point.x point.y
+
+
+mirrorY : Point2 a number -> Point2 a number
+mirrorY (Point2 point) =
+    new point.x -point.y
+
+
+mirrorXY : Point2 a number -> Point2 a number
+mirrorXY (Point2 point) =
+    new -point.x -point.y
 
 
 unsafeConvert : Point2 a number -> Point2 b number

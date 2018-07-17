@@ -4,9 +4,9 @@ import Model exposing (..)
 import Point2 exposing (Point2(..))
 
 
-worldToGrid : Point2 WorldCoord number -> Point2 WorldCoord number -> Point2 GridCoord number
-worldToGrid gridOffset point =
-    Point2.sub point gridOffset |> Point2.unsafeConvert
+worldToGrid : GridRecord a -> Point2 WorldCoord Int -> Point2 GridCoord Int
+worldToGrid model point =
+    Point2.sub point model.gridOffset |> Point2.unsafeConvert
 
 
 gridToWorld : Point2 WorldCoord number -> Point2 GridCoord number -> Point2 WorldCoord number

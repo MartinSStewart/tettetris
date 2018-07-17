@@ -35,6 +35,21 @@ set (Point2 point) value array2 =
         { size = array2.size, data = newData }
 
 
+getColumn : Int -> Array2 a b -> List b
+getColumn columnIndex array2 =
+    array2.data
+        |> Array.map (Array.get columnIndex)
+        |> Array.toList
+        |> List.filterMap (\a -> a)
+
+
+getRow : Int -> Array2 a b -> List b
+getRow rowIndex array2 =
+    Array.get rowIndex array2.data
+        |> Maybe.withDefault Array.empty
+        |> Array.toList
+
+
 replace : Point2 a Int -> (b -> b) -> Array2 a b -> Array2 a b
 replace point replaceFunc array2 =
     case get point array2 of

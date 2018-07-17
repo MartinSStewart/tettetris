@@ -69,11 +69,11 @@ all =
                         Block
                             (Block.square |> Tuple.first)
                             (Block.square |> Tuple.second)
-                            1
+                            0
                             (Point2.new 5 5)
                             0
 
-                    baseModel =
+                    result =
                         { grid =
                             Array2.init
                                 (Point2.new 25 25)
@@ -82,20 +82,52 @@ all =
                         , blocks = [ block ]
                         , gridOffset = Point2.zero
                         }
-
-                    result =
-                        baseModel |> Main.moveCrosshair 3
-
-                    expected =
-                        { baseModel
-                            | gridOffset = Point2.new 0 1
-                            , blocks = [ { block | position = Point2.new 5 6 } ]
-                        }
+                            |> Main.moveCrosshair 3
                 in
-                    -- we don't compare the models directly cause the test output for Array2 is really noisey
                     result
                         |> Expect.all
-                            [ .gridOffset >> Expect.equal expected.gridOffset
-                            , .blocks >> Expect.equalLists expected.blocks
+                            [ .gridOffset >> Expect.equal (Point2.new 0 1)
+                            , .blocks >> Expect.equalLists [ { block | position = Point2.new 5 6 } ]
                             ]
+        , test "Blocks are added to grid if there's a direct collision with crosshair" <|
+            \_ ->
+                let
+                    block =
+                        Block
+                            (Block.square |> Tuple.first)
+                            (Block.square |> Tuple.second)
+                            0
+                            (Point2.new 5 5)
+                            0
+
+                    result =
+                        { grid =
+                            Array2.init
+                                (Point2.new 25 25)
+                                Empty
+                                |> Array2.set (Point2.new 6 5) BlockCell
+                        , blocks = [ block ]
+                        , gridOffset = Point2.zero
+                        }
+                            |> Main.moveCrosshair 2
+                in
+                    result
+                        |> Expect.all
+                            [ .gridOffset >> Expect.equal (Point2.new -1 0)
+                            , .blocks >> Expect.equalLists []
+                            ]
+        , test "Get filled lines" <|
+            \_ ->
+                let
+                    grid =
+                        Array2.init (Point2.new 3 2) Empty
+                            |> Array2.set (Point2.new 0 0) BlockCell
+                            |> Array2.set (Point2.new 2 0) BlockCell
+                            |> Array2.set (Point2.new 0 1) BlockCell
+                            |> Array2.set (Point2.new 1 1) BlockCell
+                            |> Array2.set (Point2.new 2 1) BlockCell
+                in
+                    grid
+                        |> Main.getFilledLines
+                        |> Expect.equal { rows = Set.fromList [ 1 ], columns = Set.fromList [ 0, 2 ] }
         ]

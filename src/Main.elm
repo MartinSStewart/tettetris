@@ -2,6 +2,8 @@ port module Main exposing (..)
 
 import Array2 exposing (Array2)
 import Block
+import Color exposing (Color)
+import Color.Convert
 import Converters
 import Html exposing (Html, div, h1, img, text)
 import Html.Attributes exposing (src)
@@ -13,6 +15,7 @@ import List.Extra
 import Model exposing (..)
 import Point2 exposing (Point2(..))
 import Random
+import Set
 import Time
 
 
@@ -99,8 +102,18 @@ startGame model =
     )
 
 
-crosshairMargin : number
+crosshairMargin : Int
 crosshairMargin =
+    10
+
+
+detectorMargin : number
+detectorMargin =
+    4
+
+
+detectorHeight : number
+detectorHeight =
     10
 
 
@@ -224,14 +237,15 @@ moveCrosshair direction model =
                                 Block.move (direction + 2) block
                         in
                             if collides newModel movedBlock then
-                                if direction + 2 == block.direction then
+                                if (direction + 2) % 4 == block.direction % 4 then
                                     addBlockGroupToGrid block newModel
                                 else
                                     {- if the block and crosshair aren't moving
                                        in opposite directions then we can just
                                        push the block along with the crosshair
                                     -}
-                                    Block.move direction block |> flip appendBlock newModel
+                                    Block.move direction block
+                                        |> flip appendBlock newModel
                             else
                                 appendBlock block newModel
                     )
@@ -302,7 +316,7 @@ sign value =
 getGridValue : GridRecord a -> Point2 WorldCoord Int -> GridCell
 getGridValue model gridPosition =
     Array2.get
-        (Converters.worldToGrid model.gridOffset gridPosition)
+        (Converters.worldToGrid model gridPosition)
         model.grid
         |> Maybe.withDefault Empty
 
@@ -316,7 +330,7 @@ setGridValue model position gridCell =
     { model
         | grid =
             Array2.set
-                (Converters.worldToGrid model.gridOffset position)
+                (Converters.worldToGrid model position)
                 gridCell
                 model.grid
     }
@@ -341,8 +355,56 @@ setCrosshairCenter position model =
     }
 
 
+getFilledLines : Array2 a GridCell -> { rows : Set.Set Int, columns : Set.Set Int }
+getFilledLines grid =
+    let
+        (Point2 size) =
+            Array2.size grid
 
----- VIEW ----
+        filledGridCells =
+            Array2.toIndexedList grid |> List.filter (\( _, gridCell ) -> gridCell == Empty)
+
+        getLines getComponent =
+            getComponent size
+                - 1
+                |> List.range 0
+                |> Set.fromList
+                |> flip
+                    Set.diff
+                    (filledGridCells
+                        |> List.map (\( Point2 pos, _ ) -> getComponent pos)
+                        |> Set.fromList
+                    )
+    in
+        { rows = getLines .y, columns = getLines .x }
+
+
+filledLines : GridRecord a -> { rows : Set.Set Int, columns : Set.Set Int }
+filledLines model =
+    let
+        (Point2 size) =
+            Array2.size model.grid
+
+        crosshairCenter =
+            getCrosshairCenter model |> Converters.worldToGrid model
+
+        helper length newPoint =
+            List.range 0 (length - 1)
+                |> List.filter
+                    (\x ->
+                        List.range -detectorMargin detectorMargin
+                            |> List.all
+                                (newPoint x
+                                    >> Point2.add crosshairCenter
+                                    >> flip Array2.get model.grid
+                                    >> (==) (Just BlockCell)
+                                )
+                    )
+                |> Set.fromList
+    in
+        { rows = helper size.y (flip Point2.new)
+        , columns = helper size.x Point2.new
+        }
 
 
 gridToView :
@@ -379,35 +441,76 @@ viewGrid model topLeft size =
         cellSize =
             gridCellSize worldSize size
 
-        getViewBlock gridTypedPoint2 =
-            viewBlock (gridToView gridTypedPoint2 size) cellSize
+        (Point2 cellSizeRaw) =
+            cellSize
+
+        getViewBlock color gridTypedPoint2 =
+            viewBlock color (gridToView gridTypedPoint2 size) cellSize
 
         blockGroupBlocks =
             model.blocks
                 |> List.concatMap Converters.blockToWorld
-                |> List.map getViewBlock
+                |> List.map (getViewBlock Color.blue)
 
-        crosshairWidth =
+        lineWidth =
             2
 
         crosshairViewCenter =
             gridToView (getCrosshairCenter model) size
 
         centerPointCrosshair =
-            [ absoluteStyle
-                (crosshairViewCenter
+            [ ( (crosshairViewCenter
                     |> Point2.xOnly
-                    |> Point2.add (Point2.new (-crosshairWidth * 0.5) 0)
+                    |> Point2.add (Point2.new (-lineWidth * 0.5) 0)
                 )
-                (size |> Point2.yOnly |> Point2.add (Point2.new crosshairWidth 0))
-            , absoluteStyle
-                (crosshairViewCenter
+              , (size |> Point2.yOnly |> Point2.add (Point2.new lineWidth 0))
+              , Color.lightGray
+              )
+            , ( (crosshairViewCenter
                     |> Point2.yOnly
-                    |> Point2.add (Point2.new 0 (-crosshairWidth * 0.5))
+                    |> Point2.add (Point2.new 0 (-lineWidth * 0.5))
                 )
-                (size |> Point2.xOnly |> Point2.add (Point2.new 0 crosshairWidth))
+              , (size |> Point2.xOnly |> Point2.add (Point2.new 0 lineWidth))
+              , Color.lightGray
+              )
+            , ( (crosshairViewCenter
+                    |> Point2.add ((Point2.new -detectorHeight detectorMargin) |> Point2.mult cellSize)
+                    |> Point2.add (Point2.new 0 (-lineWidth * 0.5))
+                )
+              , (Point2.new (detectorHeight * 2 * cellSizeRaw.x) lineWidth)
+              , Color.black
+              )
+            , ( (crosshairViewCenter
+                    |> Point2.add ((Point2.new -detectorHeight -detectorMargin) |> Point2.mult cellSize)
+                    |> Point2.add (Point2.new 0 (-lineWidth * 0.5))
+                )
+              , (Point2.new (detectorHeight * 2 * cellSizeRaw.x) lineWidth)
+              , Color.black
+              )
+            , ( (crosshairViewCenter
+                    |> Point2.add ((Point2.new -detectorMargin -detectorHeight) |> Point2.mult cellSize)
+                    |> Point2.add (Point2.new 0 (-lineWidth * 0.5))
+                )
+              , (Point2.new lineWidth (detectorHeight * 2 * cellSizeRaw.y))
+              , Color.black
+              )
+            , ( (crosshairViewCenter
+                    |> Point2.add ((Point2.new detectorMargin -detectorHeight) |> Point2.mult cellSize)
+                    |> Point2.add (Point2.new 0 (-lineWidth * 0.5))
+                )
+              , (Point2.new lineWidth (detectorHeight * 2 * cellSizeRaw.y))
+              , Color.black
+              )
             ]
-                |> List.map (\a -> div [ Html.Attributes.style <| ( "background-color", "black" ) :: a ] [])
+                |> List.map
+                    (\( a, b, color ) ->
+                        div
+                            [ Html.Attributes.style <|
+                                ( "background-color", Color.Convert.colorToCssRgba color )
+                                    :: absoluteStyle a b
+                            ]
+                            []
+                    )
 
         blockDivs =
             Array2.toIndexedList model.grid
@@ -419,20 +522,20 @@ viewGrid model topLeft size =
 
                             BlockCell ->
                                 Converters.gridToWorld model.gridOffset pos
-                                    |> getViewBlock
+                                    |> getViewBlock Color.black
                                     |> Just
                     )
     in
         div
             [ Html.Attributes.style <| (absoluteStyle topLeft size) ]
-            (blockDivs ++ blockGroupBlocks ++ centerPointCrosshair)
+            (centerPointCrosshair ++ blockDivs ++ blockGroupBlocks)
 
 
-viewBlock : Point2 ViewCoord number -> Point2 ViewCoord number2 -> Html Msg
-viewBlock topLeft size =
+viewBlock : Color -> Point2 ViewCoord number -> Point2 ViewCoord number2 -> Html Msg
+viewBlock color topLeft size =
     div
         [ Html.Attributes.style <|
-            ( "background-color", "black" )
+            ( "background-color", Color.Convert.colorToCssRgba color )
                 :: absoluteStyle topLeft size
         ]
         []
@@ -453,7 +556,6 @@ absoluteStyle (Point2 position) (Point2 size) =
     , ( "top", px position.y )
     , ( "width", px size.x )
     , ( "height", px size.y )
-    , ( "margin", "0px" )
     ]
 
 
@@ -470,7 +572,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ if model.gameStarted then
-            Time.every 1000 Step
+            Time.every 500 Step
           else
             Sub.none
         , Keyboard.downs KeyPress

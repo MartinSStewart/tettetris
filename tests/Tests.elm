@@ -6,10 +6,11 @@ import Converters
 import Expect
 import Main
 import Model exposing (..)
-import Point2 exposing (Point2)
+import Point2 exposing (Point2(..))
 import Set
 import Test exposing (..)
 import Point2
+import Fuzz
 
 
 -- Check out http://package.elm-lang.org/packages/elm-community/elm-test/latest to learn more about testing in Elm!
@@ -116,18 +117,22 @@ all =
                             [ .gridOffset >> Expect.equal (Point2.new -1 0)
                             , .blocks >> Expect.equalLists []
                             ]
-        , test "Get filled lines" <|
-            \_ ->
+        , fuzz (Fuzz.intRange 0 5) "Set array2 row" <|
+            \y ->
+                Array2.init (Point2.new 3 4) False
+                    |> Array2.setRow y True
+                    |> Array2.toIndexedList
+                    |> List.all (\( Point2 p, v ) -> (p.y == y) == v)
+                    |> Expect.true ("Only values in row" ++ toString y ++ "should be true.")
+        , fuzz2 (Fuzz.intRange 0 5) (Fuzz.intRange 0 5) "Array.toIndexedList" <|
+            \x y ->
                 let
-                    grid =
-                        Array2.init (Point2.new 3 2) Empty
-                            |> Array2.set (Point2.new 0 0) BlockCell
-                            |> Array2.set (Point2.new 2 0) BlockCell
-                            |> Array2.set (Point2.new 0 1) BlockCell
-                            |> Array2.set (Point2.new 1 1) BlockCell
-                            |> Array2.set (Point2.new 2 1) BlockCell
+                    point =
+                        Point2.new x y
                 in
-                    grid
-                        |> Main.getFilledLines
-                        |> Expect.equal { rows = Set.fromList [ 1 ], columns = Set.fromList [ 0, 2 ] }
+                    Array2.init (Point2.new 3 4) False
+                        |> Array2.set point True
+                        |> Array2.toIndexedList
+                        |> List.all (\( p, v ) -> (p == point) == v)
+                        |> Expect.true "Only the point we set should be true."
         ]

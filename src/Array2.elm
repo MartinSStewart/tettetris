@@ -50,6 +50,38 @@ getRow rowIndex array2 =
         |> Array.toList
 
 
+setRow : Int -> b -> Array2 a b -> Array2 a b
+setRow columnIndex value array2 =
+    { array2
+        | data =
+            array2.data
+                |> Array.map
+                    (Array.indexedMap
+                        (\index a ->
+                            if index == columnIndex then
+                                value
+                            else
+                                a
+                        )
+                    )
+    }
+
+
+setColumn : Int -> b -> Array2 a b -> Array2 a b
+setColumn rowIndex value array2 =
+    let
+        (Point2 size) =
+            array2.size
+    in
+        { array2
+            | data =
+                array2.data
+                    |> Array.set
+                        rowIndex
+                        (Array.initialize size.x (\_ -> value))
+        }
+
+
 replace : Point2 a Int -> (b -> b) -> Array2 a b -> Array2 a b
 replace point replaceFunc array2 =
     case get point array2 of

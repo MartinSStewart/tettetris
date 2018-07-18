@@ -4,13 +4,12 @@ import Array2
 import Block
 import Converters
 import Expect
-import Main
+import Fuzz
+import Grid
 import Model exposing (..)
 import Point2 exposing (Point2(..))
 import Set
 import Test exposing (..)
-import Point2
-import Fuzz
 
 
 -- Check out http://package.elm-lang.org/packages/elm-community/elm-test/latest to learn more about testing in Elm!
@@ -36,7 +35,7 @@ all =
                             (Point2.new 0 0)
                             0
                 in
-                    Main.collides model block
+                    Grid.collides model block
                         |> Expect.false ""
         , test "Rotate pyramid" <|
             \_ ->
@@ -83,7 +82,7 @@ all =
                         , blocks = [ block ]
                         , gridOffset = Point2.zero
                         }
-                            |> Main.moveCrosshair 3
+                            |> Grid.moveCrosshair 3
                 in
                     result
                         |> Expect.all
@@ -110,7 +109,7 @@ all =
                         , blocks = [ block ]
                         , gridOffset = Point2.zero
                         }
-                            |> Main.moveCrosshair 2
+                            |> Grid.moveCrosshair 2
                 in
                     result
                         |> Expect.all
@@ -120,10 +119,17 @@ all =
         , fuzz (Fuzz.intRange 0 5) "Set array2 row" <|
             \y ->
                 Array2.init (Point2.new 3 4) False
-                    |> Array2.setRow y True
+                    |> Array2.setRow y (always True)
                     |> Array2.toIndexedList
                     |> List.all (\( Point2 p, v ) -> (p.y == y) == v)
                     |> Expect.true ("Only values in row" ++ toString y ++ "should be true.")
+        , fuzz (Fuzz.intRange 0 5) "Set array2 column" <|
+            \x ->
+                Array2.init (Point2.new 3 4) False
+                    |> Array2.setColumn x (always True)
+                    |> Array2.toIndexedList
+                    |> List.all (\( Point2 p, v ) -> (p.x == x) == v)
+                    |> Expect.true ("Only values in row" ++ toString x ++ "should be true.")
         , fuzz2 (Fuzz.intRange 0 5) (Fuzz.intRange 0 5) "Array.toIndexedList" <|
             \x y ->
                 let
@@ -135,4 +141,18 @@ all =
                         |> Array2.toIndexedList
                         |> List.all (\( p, v ) -> (p == point) == v)
                         |> Expect.true "Only the point we set should be true."
+        , test "Get filled rows and columns" <|
+            \_ ->
+                let
+                    arraySize =
+                        Grid.detectorMargin * 2 + 2
+                in
+                    Array2.init (Point2.new arraySize arraySize) Empty
+                        |> Array2.setColumn 0 (always BlockCell)
+                        |> Array2.setColumn 1 (always BlockCell)
+                        |> Grid.filledLines
+                        |> Expect.equal
+                            { rows = Set.empty
+                            , columns = [ 0, 1 ] |> Set.fromList
+                            }
         ]

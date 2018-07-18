@@ -83,7 +83,7 @@ update msg model =
 
                 removeFilled set get model =
                     Set.foldl
-                        (\a b -> { model | grid = model.grid |> set a Empty })
+                        (\a b -> { b | grid = b.grid |> set a (always Empty) })
                         model
                         (get filledLines)
             in

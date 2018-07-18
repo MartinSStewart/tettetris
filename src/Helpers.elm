@@ -14,6 +14,14 @@ sign value =
         0
 
 
+ifThenElse : Bool -> a -> a -> a
+ifThenElse condition ifTrue ifFalse =
+    if condition then
+        ifTrue
+    else
+        ifFalse
+
+
 tupleCombine : (a -> b -> c) -> ( a, b ) -> c
 tupleCombine combine ( a, b ) =
     combine a b

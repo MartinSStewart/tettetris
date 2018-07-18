@@ -45,15 +45,6 @@ collides model block =
                             True
                         else
                             False
-                    -- let
-                    --     oppositeSide =
-                    --         Point2.new 1 0 |> Point2.rotateBy90 block.direction
-                    -- in
-                    --     getCrosshairCenter model
-                    --         |> Point2.sub a
-                    --         |> Point2.map sign
-                    --         |> Point2.mult oppositeSide
-                    --         |> (==) oppositeSide
                 else
                     True
             )
@@ -134,14 +125,13 @@ filledLines grid =
             List.range 0 (length - 1)
                 |> List.filter
                     (\x ->
-                        List.range -detectorMargin detectorMargin
+                        List.range -detectorMargin (detectorMargin - 1)
                             |> List.all
                                 (newPoint x
                                     >> Point2.add (Point2.div grid.size 2 |> xyOnly)
                                     >> flip Array2.get grid
                                     >> (==) (Just BlockCell)
                                 )
-                            |> Debug.log ""
                     )
                 |> Set.fromList
     in

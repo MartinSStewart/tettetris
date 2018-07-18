@@ -40,7 +40,7 @@ getColumn columnIndex array2 =
     array2.data
         |> Array.map (Array.get columnIndex)
         |> Array.toList
-        |> List.filterMap (\a -> a)
+        |> List.filterMap identity
 
 
 getRow : Int -> Array2 a b -> List b
@@ -50,8 +50,8 @@ getRow rowIndex array2 =
         |> Array.toList
 
 
-setRow : Int -> b -> Array2 a b -> Array2 a b
-setRow columnIndex value array2 =
+setRow : Int -> (Int -> b) -> Array2 a b -> Array2 a b
+setRow columnIndex valueFunc array2 =
     { array2
         | data =
             array2.data
@@ -59,7 +59,7 @@ setRow columnIndex value array2 =
                     (Array.indexedMap
                         (\index a ->
                             if index == columnIndex then
-                                value
+                                valueFunc index
                             else
                                 a
                         )
@@ -67,8 +67,8 @@ setRow columnIndex value array2 =
     }
 
 
-setColumn : Int -> b -> Array2 a b -> Array2 a b
-setColumn rowIndex value array2 =
+setColumn : Int -> (Int -> b) -> Array2 a b -> Array2 a b
+setColumn rowIndex valueFunc array2 =
     let
         (Point2 size) =
             array2.size
@@ -78,7 +78,7 @@ setColumn rowIndex value array2 =
                 array2.data
                     |> Array.set
                         rowIndex
-                        (Array.initialize size.x (\_ -> value))
+                        (Array.initialize size.x valueFunc)
         }
 
 
@@ -109,3 +109,19 @@ toIndexedList array2 =
 size : Array2 a b -> Point2 a Int
 size array2 =
     array2.size
+
+
+type ColumnSide
+    = Left
+    | Right
+
+
+type RowSide
+    = Up
+    | Down
+
+
+
+-- mergeColumns : Int -> b -> ColumnSide -> Array2 a b -> Array2 a b
+-- mergeColumns columnIndex fillValue shiftDirection array2 =
+--     Array2.setColumn columnIndex

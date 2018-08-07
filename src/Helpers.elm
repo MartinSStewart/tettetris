@@ -40,3 +40,12 @@ absoluteStyle (Point2 position) (Point2 size) =
 px : number -> String
 px value =
     toString value ++ "px"
+
+
+logMapped : String -> (a -> String) -> a -> a
+logMapped tag map value =
+    let
+        _ =
+            map value |> Debug.log tag
+    in
+        value

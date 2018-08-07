@@ -58,6 +58,14 @@ stepsPerNewBlock =
     5
 
 
+updateWithDebug : Msg -> Model -> ( Model, Cmd Msg )
+updateWithDebug msg model =
+    update msg model
+        |> Helpers.logMapped
+            ""
+            (\( model, cmd ) -> Json.Encode.encode 4 (Json.encodeModel model))
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -65,39 +73,40 @@ update msg model =
             ( model, Cmd.none )
 
         Step _ ->
-            let
-                countdown =
-                    model.newBlockCountdown
-
-                newModel =
-                    (if countdown <= 0 then
-                        { model | newBlockCountdown = stepsPerNewBlock - 1 }
-                            |> Grid.addRandomBlock
-                     else
-                        { model | newBlockCountdown = countdown - 1 }
-                    )
-                        |> Grid.step
-
-                filledLines =
-                    Grid.filledLines newModel.grid
-
-                removeFilled set get model =
-                    Set.foldl
-                        (\a b -> { b | grid = b.grid |> set a (always Empty) })
-                        model
-                        (get filledLines)
-            in
-                ( newModel
-                    |> removeFilled Array2.setRow .rows
-                    |> removeFilled Array2.setColumn .columns
-                , Cmd.none
-                )
+            ( step model, Cmd.none )
 
         KeyPress keyCode ->
             if model.gameStarted then
                 ( gameStartedKeyPress keyCode model, Cmd.none )
             else
                 startGame model
+
+
+step : Model -> Model
+step model =
+    let
+        countdown =
+            model.newBlockCountdown
+
+        newModel =
+            (if countdown <= 0 then
+                { model | newBlockCountdown = stepsPerNewBlock - 1 }
+                    |> Grid.addRandomBlock
+             else
+                { model | newBlockCountdown = countdown - 1 }
+            )
+                |> Grid.step
+
+        filledLines =
+            Grid.filledLines BlockCell newModel.grid
+
+        removeFilled set get model =
+            Set.foldl
+                (\a b -> { b | grid = b.grid |> set a (always Empty) })
+                model
+                (get filledLines)
+    in
+        { newModel | grid = Grid.compactify filledLines newModel.grid }
 
 
 startGame : { b | gameStarted : Bool } -> ( { b | gameStarted : Bool }, Cmd msg )
@@ -183,6 +192,6 @@ main =
     Html.programWithFlags
         { view = view
         , init = init
-        , update = update
+        , update = updateWithDebug
         , subscriptions = subscriptions
         }

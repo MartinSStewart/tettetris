@@ -6,9 +6,9 @@ import Color exposing (Color)
 import Color.Convert
 import Converters
 import Helpers
-import Html exposing (div, Html)
+import Html exposing (Html, div)
 import Html.Attributes
-import List.Extra
+import List.Extra as List
 import Model exposing (..)
 import Point2 exposing (Point2(..))
 import Random
@@ -115,8 +115,8 @@ setCrosshairCenter position model =
     }
 
 
-filledLines : Array2 GridCoord GridCell -> { rows : Set Int, columns : Set Int }
-filledLines grid =
+filledLines : b -> Array2 a b -> Bands
+filledLines emptyCell grid =
     let
         (Point2 size) =
             Array2.size grid
@@ -130,7 +130,7 @@ filledLines grid =
                                 (newPoint x
                                     >> Point2.add (Point2.div grid.size 2 |> xyOnly)
                                     >> flip Array2.get grid
-                                    >> (==) (Just BlockCell)
+                                    >> (==) (Just emptyCell)
                                 )
                     )
                 |> Set.fromList
@@ -162,7 +162,7 @@ addRandomBlock model =
             (List.length Block.shapes
                 |> Random.int 0
                 |> Random.map
-                    (flip List.Extra.getAt Block.shapes
+                    (flip List.getAt Block.shapes
                         >> Maybe.withDefault Block.hook
                     )
             )
@@ -368,3 +368,83 @@ gridCellSize (Point2 gridDivs) gridViewSize =
         |> Point2.map toFloat
         |> Point2.inverse
         |> Point2.mult gridViewSize
+
+
+type alias Bands =
+    { rows : Set Int, columns : Set Int }
+
+
+invertBands : Point2 a Int -> Bands -> Bands
+invertBands (Point2 gridSize) { rows, columns } =
+    { rows = gridSize.y - 1 |> List.range 0 |> Set.fromList |> flip Set.diff rows
+    , columns = gridSize.x - 1 |> List.range 0 |> Set.fromList |> flip Set.diff columns
+    }
+
+
+{-| Removes given rows and columns by shifting adjacent rows and columns.
+-}
+compactify : Bands -> Array2 a GridCell -> Array2 a GridCell
+compactify linesToRemove oldGrid =
+    let
+        notRemoved =
+            linesToRemove |> invertBands oldGrid.size
+
+        (Point2 size) =
+            oldGrid.size
+    in
+        oldGrid
+            |> compactHelper linesToRemove.columns identity
+            |> compactHelper linesToRemove.rows Point2.transpose
+
+
+compactHelper :
+    Set Int
+    -> (Point2 a Int -> Point2 a Int)
+    -> Array2 a GridCell
+    -> Array2 a GridCell
+compactHelper removeLines transpose grid =
+    let
+        (Point2 size) =
+            grid.size |> transpose
+
+        offset =
+            setCount ((>) (size.x // 2)) removeLines
+    in
+        Array2.toIndexedList grid
+            |> List.filter
+                (\( pos, value ) ->
+                    pos
+                        |> transpose
+                        |> (\(Point2 c) -> c.x)
+                        |> flip Set.member removeLines
+                        |> not
+                        |> (&&) (value /= Empty)
+                )
+            |> List.foldl
+                (\( pos, value ) b ->
+                    let
+                        newPos =
+                            removeLines
+                                |> setCount (\a -> a < (pos |> transpose |> (\(Point2 c) -> c.x)))
+                                |> flip Point2.new 0
+                                |> transpose
+                                |> Point2.add pos
+                    in
+                        Array2.set newPos value b
+                )
+                (Array2.init grid.size Empty)
+
+
+charSelector : GridCell -> Char
+charSelector gridCell =
+    case gridCell of
+        BlockCell ->
+            'x'
+
+        Empty ->
+            '.'
+
+
+setCount : (comparable -> Bool) -> Set comparable -> Int
+setCount counter set =
+    set |> Set.filter counter |> Set.size

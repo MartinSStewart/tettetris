@@ -1,11 +1,11 @@
 module Array2 exposing (..)
 
-import Array.Hamt as Array
+import Array as Array exposing (Array)
 import Point2 exposing (Point2(..))
 
 
 type alias Array2 a b =
-    { size : Point2 a Int, data : Array.Array (Array.Array b) }
+    { size : Point2 a Int, data : Array (Array b) }
 
 
 init : Point2 a Int -> b -> Array2 a b
@@ -35,51 +35,12 @@ set (Point2 point) value array2 =
         { size = array2.size, data = newData }
 
 
-getColumn : Int -> Array2 a b -> List b
-getColumn columnIndex array2 =
-    array2.data
-        |> Array.map (Array.get columnIndex)
-        |> Array.toList
-        |> List.filterMap identity
-
-
-getRow : Int -> Array2 a b -> List b
-getRow rowIndex array2 =
-    Array.get rowIndex array2.data
-        |> Maybe.withDefault Array.empty
-        |> Array.toList
-
-
-setRow : Int -> (Int -> b) -> Array2 a b -> Array2 a b
-setRow columnIndex valueFunc array2 =
-    { array2
-        | data =
-            array2.data
-                |> Array.map
-                    (Array.indexedMap
-                        (\index a ->
-                            if index == columnIndex then
-                                valueFunc index
-                            else
-                                a
-                        )
-                    )
-    }
-
-
-setColumn : Int -> (Int -> b) -> Array2 a b -> Array2 a b
-setColumn rowIndex valueFunc array2 =
-    let
-        (Point2 size) =
-            array2.size
-    in
-        { array2
-            | data =
-                array2.data
-                    |> Array.set
-                        rowIndex
-                        (Array.initialize size.x valueFunc)
-        }
+map : (( Point2 a Int, b ) -> b) -> Array2 a b -> Array2 a b
+map mapFunc array2 =
+    toIndexedList array2
+        |> List.foldl
+            (\( pos, value ) b -> b |> set pos (mapFunc ( pos, value )))
+            array2
 
 
 replace : Point2 a Int -> (b -> b) -> Array2 a b -> Array2 a b
@@ -111,17 +72,73 @@ size array2 =
     array2.size
 
 
-type ColumnSide
-    = Left
-    | Right
+toString : (b -> Char) -> Array2 a b -> String
+toString charSelector array2 =
+    let
+        (Point2 size) =
+            array2.size
+    in
+        List.range 0 (size.x - 1)
+            |> List.foldl
+                (\x text ->
+                    List.range 0 (size.x - 1)
+                        |> List.foldl
+                            (\y text ->
+                                array2
+                                    |> get (Point2.new x y)
+                                    |> Maybe.map charSelector
+                                    |> Maybe.withDefault ' '
+                                    |> flip (::) text
+                            )
+                            [ '\n' ]
+                        |> String.fromList
+                        |> flip (::) text
+                )
+                []
+            |> String.join ""
 
 
-type RowSide
-    = Up
-    | Down
+
+-- toIndexedList array2
+--     |> List.sortWith
+--         (\( Point2 pos0, _ ) ( Point2 pos1, _ ) ->
+--             if pos0.y < pos1.y then
+--                 LT
+--             else if pos0.y > pos1.y then
+--                 GT
+--             else if pos0.x < pos1.x then
+--                 LT
+--             else if pos0.x > pos1.x then
+--                 GT
+--             else
+--                 EQ
+--         )
+--     |> List.map (\( pos, value ) -> charSelector value) |>
 
 
+fromString : (Char -> b) -> b -> String -> Array2 a b
+fromString cellSelector defaultValue text =
+    let
+        textLines =
+            String.filter ((/=) '\x0D') text
+                |> String.split "\n"
 
--- mergeColumns : Int -> b -> ColumnSide -> Array2 a b -> Array2 a b
--- mergeColumns columnIndex fillValue shiftDirection array2 =
---     Array2.setColumn columnIndex
+        size =
+            Point2.new
+                (textLines |> List.map String.length |> List.maximum |> Maybe.withDefault 0)
+                (textLines |> List.length |> (+) -1)
+    in
+        textLines
+            |> List.foldl
+                (\textLine ( y, array2 ) ->
+                    List.foldl
+                        (\char ( x, array2 ) ->
+                            set (Point2.new x y) (cellSelector char) array2 |> (,) (x + 1)
+                        )
+                        ( 0, array2 )
+                        (String.toList textLine)
+                        |> Tuple.second
+                        |> (,) (y + 1)
+                )
+                ( 0, init size defaultValue )
+            |> Tuple.second

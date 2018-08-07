@@ -4,8 +4,7 @@ import Array2
 import Block
 import Converters
 import Expect
-import Fuzz
-import Grid
+import Grid exposing (Bands)
 import Model exposing (..)
 import Point2 exposing (Point2(..))
 import Set
@@ -116,31 +115,6 @@ all =
                             [ .gridOffset >> Expect.equal (Point2.new -1 0)
                             , .blocks >> Expect.equalLists []
                             ]
-        , fuzz (Fuzz.intRange 0 5) "Set array2 row" <|
-            \y ->
-                Array2.init (Point2.new 3 4) False
-                    |> Array2.setRow y (always True)
-                    |> Array2.toIndexedList
-                    |> List.all (\( Point2 p, v ) -> (p.y == y) == v)
-                    |> Expect.true ("Only values in row" ++ toString y ++ "should be true.")
-        , fuzz (Fuzz.intRange 0 5) "Set array2 column" <|
-            \x ->
-                Array2.init (Point2.new 3 4) False
-                    |> Array2.setColumn x (always True)
-                    |> Array2.toIndexedList
-                    |> List.all (\( Point2 p, v ) -> (p.x == x) == v)
-                    |> Expect.true ("Only values in row" ++ toString x ++ "should be true.")
-        , fuzz2 (Fuzz.intRange 0 5) (Fuzz.intRange 0 5) "Array.toIndexedList" <|
-            \x y ->
-                let
-                    point =
-                        Point2.new x y
-                in
-                    Array2.init (Point2.new 3 4) False
-                        |> Array2.set point True
-                        |> Array2.toIndexedList
-                        |> List.all (\( p, v ) -> (p == point) == v)
-                        |> Expect.true "Only the point we set should be true."
         , test "Get filled rows and columns" <|
             \_ ->
                 let
@@ -148,11 +122,54 @@ all =
                         Grid.detectorMargin * 2 + 2
                 in
                     Array2.init (Point2.new arraySize arraySize) Empty
-                        |> Array2.setColumn 0 (always BlockCell)
-                        |> Array2.setColumn 1 (always BlockCell)
-                        |> Grid.filledLines
+                        |> Array2.map
+                            (\( Point2 a, b ) ->
+                                if a.x == 0 || a.x == 1 then
+                                    BlockCell
+                                else
+                                    Empty
+                            )
+                        |> Grid.filledLines BlockCell
                         |> Expect.equal
                             { rows = Set.empty
                             , columns = [ 0, 1 ] |> Set.fromList
                             }
+        , test "Get empty rows and columns" <|
+            \_ ->
+                let
+                    arraySize =
+                        Grid.detectorMargin * 2 + 2
+                in
+                    Array2.init (Point2.new arraySize arraySize) Empty
+                        |> Grid.filledLines Empty
+                        |> Expect.equal
+                            { rows = List.range 0 (arraySize - 1) |> Set.fromList
+                            , columns = List.range 0 (arraySize - 1) |> Set.fromList
+                            }
+        , test "Compactify grid" <|
+            \_ ->
+                let
+                    arraySize =
+                        4
+
+                    grid =
+                        Array2.init (Point2.new arraySize arraySize) Empty
+                            |> Array2.set (Point2.new 2 1) BlockCell
+                            |> Array2.set (Point2.new 3 3) BlockCell
+
+                    expected =
+                        Array2.init (Point2.new arraySize arraySize) Empty
+                            |> Array2.set (Point2.new 2 1) BlockCell
+
+                    charSelector gridCell =
+                        case gridCell of
+                            BlockCell ->
+                                'x'
+
+                            Empty ->
+                                '.'
+                in
+                    Grid.compactify (Bands (Set.fromList [ 3 ]) (Set.fromList [])) grid
+                        |> Array2.toString charSelector
+                        |> Expect.equal (expected |> Array2.toString charSelector)
         ]
